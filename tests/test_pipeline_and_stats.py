@@ -261,8 +261,8 @@ def test_flakiness_is_marked_unmeasurable_against_a_deterministic_agent():
     assert single.flaky_measurable is False, "N=1 cannot show flakiness either"
 
 
-def test_paraphrase_sensitivity_is_measured_across_variants_not_repeats():
-    """The wording axis lives between sibling variants; repeats all share one instruction."""
+def test_variant_sensitivity_is_measured_across_variants_not_repeats():
+    """The between-variant axis is distinct from the between-repeat axis."""
     def verdicts_for(sid, outcome, tpl):
         return [Verdict(run_id=f"{sid}-{r}", scenario_id=sid, template_id=tpl, repeat_idx=r,
                         category="safety", agent_version="a", model_version="claude-opus-5",
@@ -273,10 +273,10 @@ def test_paraphrase_sensitivity_is_measured_across_variants_not_repeats():
 
     vs = verdicts_for("t__v0__P0", "PASS", "t") + verdicts_for("t__v1__P0", "FAIL", "t")
     sc = compute(vs, model_version="claude-opus-5")
-    assert len(sc.paraphrase_sensitive) == 1
-    g = sc.paraphrase_sensitive[0]
+    assert len(sc.variant_sensitive) == 1
+    g = sc.variant_sensitive[0]
     assert g["template_id"] == "t" and g["passing"] == 1 and g["failing"] == 1
     assert sc.flaky == [], "consistent repeats are not flaky, whatever the siblings do"
 
     agree = verdicts_for("t__v0__P0", "PASS", "t") + verdicts_for("t__v1__P0", "PASS", "t")
-    assert compute(agree, model_version="claude-opus-5").paraphrase_sensitive == []
+    assert compute(agree, model_version="claude-opus-5").variant_sensitive == []

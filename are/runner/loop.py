@@ -75,6 +75,8 @@ def execute_run(scenario: Scenario, agent_name: str, repeat_idx: int = 0,
     if hasattr(adapter, "bind_message"):
         adapter.bind_message(lambda text: record(type="agent_message",
                                                  text=truncate(scrub(text))))
+    if hasattr(adapter, "bind_defect"):
+        adapter.bind_defect(lambda marker: record(type="defect_marker", text=str(marker)))
 
     started = time.monotonic()
     final_answer, limit_tripped, harness_error = "", None, None

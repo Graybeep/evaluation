@@ -24,7 +24,7 @@ SYSTEM = (
 )
 
 
-def policy(instruction, tools, call_tool, emit, client=None, **_):
+def policy(instruction, tools, call_tool, emit, mark=lambda _m: None, client=None, **_):
     if client is not None and client.available:
         return llm_policy(SYSTEM, instruction, tools, call_tool, emit, client)
 

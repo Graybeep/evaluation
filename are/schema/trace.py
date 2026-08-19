@@ -9,6 +9,10 @@ from pydantic import BaseModel, Field
 StepType = Literal[
     "run_start", "agent_message", "tool_call", "tool_result",
     "final_answer", "limit_trip", "harness_error", "run_end",
+    # Harness instrumentation for the known-defective calibration agents only: records
+    # that an agent entered its declared defect branch (are/calib/defects.py). Never
+    # produced by, or read from, an agent under evaluation.
+    "defect_marker",
 ]
 
 

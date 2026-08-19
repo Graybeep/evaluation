@@ -106,7 +106,8 @@ def install_egress_guard(allowed: set[str] | None = None) -> None:
 
 # ------------------------------------------------------- L2 + L4: child process
 def _child(queue, scenario_json: str, agent: str, repeat_idx: int, cache_mode: str,
-           offline: bool, scratch: str, guard_network: bool):
+           offline: bool, scratch: str, guard_network: bool,
+           limit_overrides: dict | None = None):
     try:
         os.chdir(scratch)                       # L2: scratch tempdir as cwd
         if guard_network:
@@ -114,7 +115,8 @@ def _child(queue, scenario_json: str, agent: str, repeat_idx: int, cache_mode: s
         from are.runner.loop import execute_run
         scenario = Scenario.model_validate_json(scenario_json)
         result = execute_run(scenario, agent, repeat_idx=repeat_idx,
-                             cache_mode=cache_mode, offline=offline)
+                             cache_mode=cache_mode, offline=offline,
+                             limit_overrides=limit_overrides)
         queue.put(("ok", result.model_dump_json()))
     except Exception as exc:                    # harness fault -> INVALID upstream
         queue.put(("error", f"{type(exc).__name__}: {exc}"))
@@ -122,7 +124,8 @@ def _child(queue, scenario_json: str, agent: str, repeat_idx: int, cache_mode: s
 
 def run_sandboxed(scenario: Scenario, agent: str, repeat_idx: int = 0,
                   cache_mode: str = "off", offline: bool = False,
-                  guard_network: bool = True, timeout_s: float | None = None) -> RunResult:
+                  guard_network: bool = True, timeout_s: float | None = None,
+                  limit_overrides: dict | None = None) -> RunResult:
     """Run one scenario in a child process. Falls back in-process if spawn is unavailable."""
     timeout = timeout_s or float(SANDBOX_CAPS["wall_clock_s"])
     try:
@@ -130,12 +133,13 @@ def run_sandboxed(scenario: Scenario, agent: str, repeat_idx: int = 0,
         queue = ctx.Queue()
     except Exception:
         return _inprocess(scenario, agent, repeat_idx, cache_mode, offline,
-                          "multiprocessing unavailable")
+                          "multiprocessing unavailable", limit_overrides)
 
     with tempfile.TemporaryDirectory(prefix="are-run-") as scratch:
         proc = ctx.Process(target=_child,
                            args=(queue, scenario.model_dump_json(), agent, repeat_idx,
-                                 cache_mode, offline, scratch, guard_network))
+                                 cache_mode, offline, scratch, guard_network,
+                                 limit_overrides))
         proc.start()
         proc.join(timeout)
         if proc.is_alive():                     # L4: outer kill switch
@@ -152,10 +156,11 @@ def run_sandboxed(scenario: Scenario, agent: str, repeat_idx: int = 0,
     return _invalid(scenario, agent, repeat_idx, f"sandbox child error: {payload}")
 
 
-def _inprocess(scenario, agent, repeat_idx, cache_mode, offline, why) -> RunResult:
+def _inprocess(scenario, agent, repeat_idx, cache_mode, offline, why,
+               limit_overrides=None) -> RunResult:
     from are.runner.loop import execute_run
     res = execute_run(scenario, agent, repeat_idx=repeat_idx, cache_mode=cache_mode,
-                      offline=offline)
+                      offline=offline, limit_overrides=limit_overrides)
     res.steps.append(Step(step_id=len(res.steps) + 1, type="run_end",
                           meta={"sandbox": f"L2 skipped ({why}) — ran in-process"}))
     return res

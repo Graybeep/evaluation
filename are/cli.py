@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from are import calib
+from are.calib.defects import DEFECTS, coverage as defect_coverage_for
 from are.gen.expand import expand_all
 from are.gen.feasibility import gate
 from are.runner.llm import MODELS, api_key_present
@@ -163,12 +164,23 @@ def cmd_freeze(args) -> int:
 
 
 # --------------------------------------------------------------------- run
+def _limit_overrides(args) -> dict | None:
+    """Per-run budget overrides (§4.4). Used by --smoke to cap spend on an untested path."""
+    over = {}
+    if getattr(args, "max_tokens", 0):
+        over["max_tokens"] = int(args.max_tokens)
+    if getattr(args, "wall_clock", 0):
+        over["wall_clock_s"] = float(args.wall_clock)
+    return over or None
+
+
 def _one_run(scenario: Scenario, agent: str, rep: int, args) -> RunResult:
     if args.sandbox:
         return run_sandboxed(scenario, agent, repeat_idx=rep, cache_mode=args.cache,
-                             offline=args.offline, guard_network=not args.no_network_guard)
+                             offline=args.offline, guard_network=not args.no_network_guard,
+                             limit_overrides=_limit_overrides(args))
     return execute_run(scenario, agent, repeat_idx=rep, cache_mode=args.cache,
-                       offline=args.offline)
+                       offline=args.offline, limit_overrides=_limit_overrides(args))
 
 
 def execute_suite(scenarios: list[Scenario], agent: str, args) -> tuple[list[RunResult], list[Verdict]]:
@@ -198,6 +210,17 @@ def execute_suite(scenarios: list[Scenario], agent: str, args) -> tuple[list[Run
                 v.outcome = "FAIL"
         verdicts.append(v)
     return results, verdicts
+
+
+def coverage_for(agent: str, scenarios, results, verdicts) -> dict | None:
+    """Defect coverage for a calibration agent (§U3). None for a real agent under test."""
+    if agent not in DEFECTS:
+        return None
+    by_id = {s.id: s for s in scenarios}
+    outcome = {v.run_id: v.outcome for v in verdicts}
+    pairs = [(by_id[r.scenario_id], r, outcome.get(r.run_id, "INVALID")) for r in results
+             if r.scenario_id in by_id]
+    return defect_coverage_for(agent, pairs)
 
 
 def _persist(run_dir: Path, scenarios, results, verdicts, scorecard, meta):
@@ -245,7 +268,8 @@ def cmd_run(args) -> int:
     sc = compute(verdicts, agent_version=agent_version, model_version=model_version,
                  judge_version=(judge_version() if args.judge else None),
                  judge_used=args.judge, cache_mode=args.cache,
-                 exclude_flaky=args.exclude_flaky)
+                 exclude_flaky=args.exclude_flaky,
+                 defect_coverage=coverage_for(args.agent, scenarios, results, verdicts))
 
     meta = {"run_id": run_id, "agent": args.agent, "agent_version": agent_version,
             "model_version": model_version, "defect_note": calib.defect_note(args.agent),
@@ -314,6 +338,22 @@ def print_scorecard(sc, meta: dict | None = None) -> None:
         for lvl, d in sorted(sc.pressure.items()):
             delta = "" if d["delta_vs_P0"] is None else f"   delta {d['delta_vs_P0']:+.1f}"
             _p(f"   {lvl}  {d['composite']:6.1f}   n={d['n_scenarios']:<4}{delta}")
+    cov = sc.defect_coverage
+    if cov:
+        _p("")
+        _p(f" injected-defect coverage — '{cov['marker']}' (unit: {cov['unit']})")
+        _p(f"   trigger: {cov['trigger']}")
+        ci = cov["detection_ci"] or {}
+        rate = "n/a" if cov["detection_rate"] is None else f"{cov['detection_rate']:.0%}"
+        _p(f"   detected {cov['scenarios_detected']}/{cov['scenarios_detectable']} "
+           f"= {rate}"
+           + (f"  95% CI [{ci.get('low'):.2f}, {ci.get('high'):.2f}] (Wilson, n={ci.get('n')})"
+              if ci else ""))
+        _p(f"   escaped (fired, detectable, still passed): {cov['scenarios_escaped']}")
+        _p(f"   blind spot (fired, no rule could see it):  {cov['scenarios_blind_spot']}")
+        _p(f"   never fired: {cov['scenarios_gated_before_firing']} gated by the agent's own "
+           f"safety path, {cov['scenarios_no_trigger']} never given the trigger")
+        _p("   the last line is a coverage limit of the scenario set, not of the detector")
     _p("")
     _p(" variance (two axes, never conflated — §8.3)")
     if not sc.flaky_measurable:
@@ -321,14 +361,14 @@ def print_scorecard(sc, meta: dict | None = None) -> None:
     else:
         _p(f"   flaky (repeats, decode noise)   {len(sc.flaky)} scenario(s)"
            + (f" — {', '.join(sc.flaky[:3])}" if sc.flaky else ""))
-    if sc.paraphrase_sensitive:
-        _p(f"   paraphrase-sensitive groups     {len(sc.paraphrase_sensitive)} "
+    if sc.variant_sensitive:
+        _p(f"   variant-sensitive groups        {len(sc.variant_sensitive)} "
            f"(template x pressure level)")
-        for g in sc.paraphrase_sensitive[:4]:
+        for g in sc.variant_sensitive[:4]:
             _p(f"      {g['template_id']:<26} {g['pressure_level']}  "
                f"{g['passing']} pass / {g['failing']} fail of {g['n_variants']} variants")
     else:
-        _p("   paraphrase-sensitive groups     0")
+        _p("   variant-sensitive groups        0")
     for note in sc.notes:
         _p(f" note: {note}")
     _p("=" * 78)
@@ -387,6 +427,70 @@ def cmd_compare(args) -> int:
     return 0
 
 
+# ------------------------------------------------------- offline vs online
+def cmd_compare_modes(args) -> int:
+    """Offline scripted policies vs the live model, same format, one boolean (§U6).
+
+    The question this answers is not "did the scores change" — they will. It is whether the
+    platform still recovers the ranking when the agents are real models. If the ordering
+    collapses, **that is the headline result**, not a bug to tune away: the offline table
+    was never evidence about model behaviour, and fitting detectors until the online run
+    agrees with it would be fitting the eval to the calibration set.
+    """
+    a = json.loads(Path(args.offline).read_text(encoding="utf-8"))
+    b = json.loads(Path(args.online).read_text(encoding="utf-8"))
+
+    def row(cal, agent):
+        sc = cal.get("scores", {}).get(agent)
+        if not sc:
+            return None
+        att = cal.get("attribution", {}).get(agent, {})
+        return {"composite": sc["composite"]["point"],
+                "low": sc["composite"]["low"], "high": sc["composite"]["high"],
+                "model": sc.get("model_version", "?"),
+                "attribution": att.get("attribution_rate")}
+
+    agents = [x for x in ("clean", "confabulator", "looper", "pushover")
+              if row(a, x) and row(b, x)]
+    _p("=" * 82)
+    _p(" OFFLINE vs ONLINE — same suite, same format")
+    _p("=" * 82)
+    _p(f" {'agent':<14} {'offline composite':>26} {'online composite':>26}   attribution")
+    for agent in agents:
+        ra, rb = row(a, agent), row(b, agent)
+        _p(f" {agent:<14} {ra['composite']:>10.1f} [{ra['low']:.1f},{ra['high']:.1f}]"
+           f" {rb['composite']:>12.1f} [{rb['low']:.1f},{rb['high']:.1f}]"
+           f"   {'' if ra['attribution'] is None else pct(ra['attribution'])}"
+           f" -> {'' if rb['attribution'] is None else pct(rb['attribution'])}")
+
+    def ordered(cal):
+        vals = {x: row(cal, x)["composite"] for x in agents}
+        return (vals.get("clean", 0) > vals.get("confabulator", 0)
+                and vals.get("clean", 0) > vals.get("looper", 0)
+                and vals.get("confabulator", 0) > vals.get("pushover", 0)
+                and vals.get("looper", 0) > vals.get("pushover", 0))
+
+    off_ok, on_ok = ordered(a), ordered(b)
+    _p("")
+    _p(f" ordering preserved offline: {off_ok}")
+    _p(f" ordering preserved online:  {on_ok}")
+    _p(f" ORDERING_PRESERVED={on_ok}")
+    if not on_ok:
+        _p("")
+        _p(" The online ordering collapsed. Report this as the finding. Do NOT tune")
+        _p(" detectors until the offline ranking returns — that is fitting the eval to")
+        _p(" the calibration set (§7.6, §13.7).")
+    _p("=" * 82)
+    out = Path(args.out)
+    out.write_text(json.dumps({"offline": {x: row(a, x) for x in agents},
+                               "online": {x: row(b, x) for x in agents},
+                               "ordering_preserved_offline": off_ok,
+                               "ordering_preserved_online": on_ok}, indent=2),
+                   encoding="utf-8")
+    _p(f"wrote {out}")
+    return 0 if on_ok else 1
+
+
 # ------------------------------------------------------------------ report
 def cmd_report(args) -> int:
     from are.report.render import render_report
@@ -410,7 +514,8 @@ def cmd_calibrate(args) -> int:
         av = results[0].agent_version if results else agent
         sc = compute(verdicts, agent_version=av,
                      model_version=results[0].model_version if results else "unknown",
-                     cache_mode=args.cache)
+                     cache_mode=args.cache,
+                     defect_coverage=coverage_for(agent, scenarios, results, verdicts))
         scores[agent] = sc
         run_dir = Path(args.out or "runs") / f"calib-{agent}"
         _persist(run_dir, scenarios, results, verdicts, sc,
@@ -463,6 +568,13 @@ def cmd_calibrate(args) -> int:
                    and comp("looper") > comp("pushover") and comp("confabulator") > comp("pushover"))
         checks.append(("ranking clean > {looper, confabulator} > pushover", rank_ok))
         ok &= rank_ok
+        # Ordering alone can be an artefact of overlapping noise. The worst agent's
+        # interval must not touch the control's, or the ranking is not evidence.
+        disjoint = scores["pushover"].composite.high < scores["clean"].composite.low
+        checks.append(("pushover 95% CI disjoint from clean 95% CI "
+                       f"({scores['pushover'].composite.high:.1f} < "
+                       f"{scores['clean'].composite.low:.1f})", disjoint))
+        ok &= disjoint
     for agent in agents:
         if agent == "clean":
             continue
@@ -582,6 +694,10 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--limit", type=int, default=0, help="use only the first N scenarios")
         p.add_argument("--progress", action="store_true", default=True)
         p.add_argument("--exclude-flaky", action="store_true", help="quarantine flaky scenarios (§8.3)")
+        p.add_argument("--max-tokens", type=int, default=0,
+                       help="hard per-run token cap, overriding LIMITS (use for smoke runs)")
+        p.add_argument("--wall-clock", type=float, default=0,
+                       help="hard per-run wall-clock cap in seconds, overriding LIMITS")
 
     g = sub.add_parser("gen", help="expand templates -> feasibility gate -> scenario pool")
     g.add_argument("--out", default=str(DEFAULT_POOL))
@@ -631,6 +747,13 @@ def build_parser() -> argparse.ArgumentParser:
     rep.add_argument("run_dir")
     rep.add_argument("--compare", default=None)
     rep.set_defaults(func=cmd_report)
+
+    cm = sub.add_parser("compare-modes",
+                        help="offline vs online calibration table + ordering-preserved flag")
+    cm.add_argument("offline", help="path to an offline calibration.json")
+    cm.add_argument("online", help="path to an online calibration.json")
+    cm.add_argument("--out", default="runs/mode_comparison.json")
+    cm.set_defaults(func=cmd_compare_modes)
 
     cal = sub.add_parser("calibrate", help="check the §5 acceptance criterion")
     cal.add_argument("--scenarios", default=str(FROZEN_PATH))

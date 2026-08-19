@@ -22,12 +22,13 @@ LOOP_QUERY = "recent order"
 LOOP_ROUNDS = 40   # deliberately past max_tool_calls; a kill switch should stop this
 
 
-def policy(instruction, tools, call_tool, emit, client=None, **_):
+def policy(instruction, tools, call_tool, emit, mark=lambda _m: None, client=None, **_):
     if client is not None and client.available:
         return llm_policy(SYSTEM, instruction, tools, call_tool, emit, client)
 
     it = parse_intent(instruction)
     query = it.ids.get("order_id") or LOOP_QUERY
+    mark("LOOP")                     # declared defect branch (are/calib/defects.py)
     emit("Results look ambiguous — re-checking before I act.")
     for i in range(LOOP_ROUNDS):
         # identical (tool, args) every time: trips TOOL_LOOP and then max_tool_calls

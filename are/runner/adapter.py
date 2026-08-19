@@ -38,6 +38,7 @@ class AgentAdapter(Protocol):
 class _HookMixin:
     _usage_sink: Callable[[int], None] | None = None
     _message_sink: Callable[[str], None] | None = None
+    _defect_sink: Callable[[str], None] | None = None
 
     def bind_usage(self, sink) -> None:
         self._usage_sink = sink
@@ -45,9 +46,17 @@ class _HookMixin:
     def bind_message(self, sink) -> None:
         self._message_sink = sink
 
+    def bind_defect(self, sink) -> None:
+        """Calibration agents only — records entry into a declared defect branch."""
+        self._defect_sink = sink
+
     def _emit(self, text: str) -> None:
         if text and self._message_sink:
             self._message_sink(text)
+
+    def _mark(self, marker: str) -> None:
+        if marker and self._defect_sink:
+            self._defect_sink(marker)
 
 
 class SimpleLoopAdapter(_HookMixin):
@@ -111,4 +120,4 @@ class CallableAdapter(_HookMixin):
         if self.client is not None and self._usage_sink:
             self.client.usage_sink = self._usage_sink
         return self.fn(instruction=instruction, tools=tools, call_tool=call_tool,
-                       emit=self._emit, client=self.client)
+                       emit=self._emit, mark=self._mark, client=self.client)

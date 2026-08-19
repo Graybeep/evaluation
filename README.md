@@ -101,12 +101,30 @@ the frozen set: mean failed tool results per run was **0.033**, and only **5/60 
 detector caught 5. The detector was fine; the suite was. A baseline transient-fault rate was
 added across the mix (72% of scenario bodies, keyed on `(template, variant)` so a pressure
 ladder still differs only by framing), taking observed opportunity to **70% of runs**.
-Conditioned on the defect being able to express itself, the catch rate is **17/17 = 100%**,
-and zero fabrications went unflagged — all 75 uncaught runs with a degraded read had
-*refused or asked*, never entering the fabrication branch. The same diagnostic exposed a bug
-in the agent itself: its "is this data degraded?" check looked for `total_cents` in any
-response, which a healthy `list_tickets` reply never has, so it fabricated on 3 scenarios for
-no reason. Fixed to a per-tool expected-field check.
+Conditioned on the defect being able to express itself, the catch rate is **17/17 scenarios,
+95% Wilson [0.82, 1.00]**, with zero escapes — every scenario where the fabrication branch
+was entered and a rule could see it was caught. The same diagnostic exposed a bug in the
+agent itself: its "is this data degraded?" check looked for `total_cents` in any response,
+which a healthy `list_tickets` reply never has, so it fabricated on fault-free scenarios.
+Fixed to a per-tool expected-field check.
+
+**Attribution is not a validity check, so defect firing is instrumented separately.** The
+scorecard's attribution number says an agent's failures trace to its injected defect; it
+cannot say the defect fired *for the intended reason*. Those came apart twice here. The
+`total_cents` bug above is one. The second: the confabulator treated "this instruction has
+no action to perform" as "a tool failed", and fabricated on clean read-only scenarios.
+Attribution read 100% through both, because the resulting failures were still the expected
+modes. Each defective agent now declares a trigger and emits a `defect_marker` step when it
+enters its defect branch, and `tests/test_defect_opportunity.py` asserts (a) the defect
+fires at least N times on the frozen set and (b) **every** firing occurs under its declared
+trigger. Assertion (b) is the one that catches this class of bug; no scorecard number will.
+
+Detection is then reported with **its own denominator and an interval**, scenario-level per
+§8.2: FABRICATION is detected on **17/17 scenarios, 95% Wilson [0.82, 1.00]** — not a bare
+"100%". A further **25 scenarios never exercise the defect at all**, because the agent's own
+safety gates fire first and it refuses or asks before reaching the fabrication branch, and
+**18** are never handed the trigger. Those are coverage limits of the frozen set, reported
+as their own buckets rather than folded into the denominator or silently dropped.
 
 **A gate that rejects nothing is indistinguishable from no gate — so the gate is audited.**
 The feasibility gate's discard rate on authored scenarios is **0%**, which alone proves
@@ -118,6 +136,14 @@ together, 0% baseline plus 100% catch means the authored scenarios are genuinely
 not that the gate is inert. It also caught two real authoring bugs the day the fault rate
 was raised: reference plans that didn't survive a transient fault, and a duplicated read
 that tripped the loop detector.
+
+**The caveat that belongs next to that 100%:** the mutations are ones we authored, so the
+audit carries the same co-design exposure as the calibration agents — it shows the gate
+catches the defect classes we thought of. Alongside it: the gate has **never rejected a
+real generated scenario (0/174)**, and `--solver llm`, the backend that would catch
+"possible but unreasonable" rather than "impossible", remains untested. The honest summary
+is that the gate is a validated *static and satisfiability* checker, not a validated
+judgement about whether a task is sensible.
 
 ---
 
@@ -144,8 +170,11 @@ minimum meaningful effect of 3 composite points.
 
 **Two variance axes, never reported as each other.** `flaky` is mixed outcomes across the
 N repeats of *one identical instruction* — the seed enters the response-cache key, never the
-prompt, so the only thing that can vary is model sampling. `paraphrase_sensitive` is
-outcome disagreement across *sibling variants* of one template. The scorecard also reports
+prompt, so the only thing that can vary is model sampling. `variant_sensitive` is
+outcome disagreement across *sibling variants* of one template — audited and named for what
+it actually varies: siblings differ in `world_state`, `seed`, `faults`, `assertions` and
+`pressure_tags`, not only in wording, so it is deliberately **not** called paraphrase
+sensitivity. The scorecard also reports
 `flaky_measurable`, so an empty flaky list against a deterministic agent reads as **"not
 measured"**, never as "none found".
 
@@ -255,11 +284,12 @@ measures model behaviour correctly*.
    over the final answer, plus the mutation log. The mutation-log half (did anything
    irreversible happen?) is exact; the text half is heuristic and an unusual refusal
    phrasing can read as a non-refusal.
-7. **The feasibility gate's LLM solver has never executed.** The deterministic backend is
-   validated by mutation testing (100% catch, six classes, n=40) and rejects 0% of authored
-   scenarios. The `--solver llm` path — the one that would catch "possible but unreasonable"
-   rather than "impossible" — is implemented but untested code, and is counted as future
-   work rather than a shipped capability.
+7. **The feasibility gate is validated against mutations we authored.** 100% catch over six
+   classes (n=40) shows it catches the defect classes we thought of — the same co-design
+   exposure as the calibration agents. It has never rejected a real generated scenario
+   (0/174), and `--solver llm`, the backend that would catch "possible but unreasonable"
+   rather than "impossible", has never executed. Counted as future work, not a shipped
+   capability.
 8. **L3 is OS-enforced only for offline container runs.** Online runs need egress to the LLM
    API, so `network_mode: none` is off and only a process-level allowlist remains — a
    control, not containment. The parent-process unix-socket proxy that would close this is
@@ -269,14 +299,19 @@ measures model behaviour correctly*.
    instruction, so against a deterministic scripted policy all N runs are identical and the
    flake quarantine is structurally vacuous. Reported as `flaky_measurable: false` rather
    than as an empty list.
-10. **Paraphrase sensitivity is confounded with entity binding.** Sibling variants differ in
-    wording *and* in the entities bound into them, so a flagged group means "not robust
-    across its variants", not "not robust to wording alone". Isolating the wording effect
-    needs variants that hold entities fixed.
+10. **There is no paraphrase-sensitivity measurement.** The metric that was briefly named
+    that is now `VARIANT_SENSITIVE`, because an audit of the frozen set showed sibling
+    variants differ in `world_state`, `seed`, `faults`, `assertions` and `pressure_tags` —
+    not only in wording. Isolating a wording effect needs siblings that hold seed and every
+    bound entity fixed; that is a scenario-set change and therefore a re-freeze.
 11. **Rule-based confabulation detection requires a state-change assertion.** On refuse/ask
     scenarios there is no state delta to check, so a fabricated claim there would be visible
     only to the (uncalibrated, opt-in) judge.
-12. **No MCP adapter.** One agent-loop shape is supported (`SimpleLoopAdapter`), plus any
+12. **Defect coverage is uneven across the frozen set.** FABRICATION is exercised on 17 of
+    60 scenarios; 25 are gated by the agent's own safety path and 18 never receive the
+    trigger. The detection rate is sound on its own denominator but the sample is small,
+    and its lower confidence bound (0.82) is the number to quote, not the point estimate.
+13. **No MCP adapter.** One agent-loop shape is supported (`SimpleLoopAdapter`), plus any
     Python callable (`CallableAdapter`).
 
 ---

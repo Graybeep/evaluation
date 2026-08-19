@@ -67,6 +67,25 @@ def _interval(d: dict, as_pct=False) -> str:
             f"<span class='ci'>[{fmt(d['low'])}, {fmt(d['high'])}] 95% CI, n={d['n']}</span>")
 
 
+def _mode_chip(meta) -> str:
+    """Repeated on every section header. A reader who scrolls past the top of the page
+    must not lose the single most important qualifier on every number below."""
+    offline = meta.get("offline")
+    label = "OFFLINE — scripted policy" if offline else "ONLINE — live model"
+    return f"<span class='modechip {'off' if offline else 'on'}'>{label}</span>"
+
+
+def _mode_bar(meta) -> str:
+    offline = meta.get("offline")
+    if offline:
+        return ("<div class='modebar off'>OFFLINE RUN — the agent under test was a "
+                "<b>scripted calibration policy</b>, not a model. These numbers say the "
+                "harness works; they say nothing about real model behaviour.</div>")
+    return ("<div class='modebar on'>ONLINE RUN — live model: "
+            f"<b>{_esc(meta.get('model_version'))}</b>. Sandbox L3 is degraded on this path "
+            "(see the sandbox section).</div>")
+
+
 def _headline(sc, meta) -> str:
     banner = ""
     if not sc.reportable:
@@ -105,18 +124,18 @@ def _headline(sc, meta) -> str:
 </table>"""
 
 
-def _categories(sc) -> str:
+def _categories(sc, chip='') -> str:
     rows = "".join(
         f"<tr><td>{_esc(cat)}</td><td>{_interval(d['composite'])}</td>"
         f"<td>{_interval(d['pass_rate'], as_pct=True)}</td><td>{d['n_scenarios']}</td></tr>"
         for cat, d in sorted(sc.per_category.items()))
-    return f"""<h2>Per category</h2>
+    return f"""<h2>Per category {chip}</h2>
 <p class='note'>The composite alone hides an agent that is safe but useless (§8.1).</p>
 <table><tr><th>category</th><th>composite</th><th>pass rate</th><th>n scenarios</th></tr>
 {rows}</table>"""
 
 
-def _modes(sc) -> str:
+def _modes(sc, chip='') -> str:
     rows = []
     for mode, d in sorted(sc.per_mode.items(), key=lambda kv: -kv[1]["rate"]["point"]):
         tag = ("<span class='judged'>LLM-judged, unvalidated</span>"
@@ -126,12 +145,12 @@ def _modes(sc) -> str:
                     f"<td>{d['scenarios_affected']}</td></tr>")
     if not rows:
         rows = ["<tr><td colspan=4>no failure modes detected</td></tr>"]
-    return f"""<h2>Failure modes</h2>
+    return f"""<h2>Failure modes {chip}</h2>
 <table><tr><th>mode</th><th>severity</th><th>rate across scenarios</th><th>scenarios affected</th></tr>
 {''.join(rows)}</table>"""
 
 
-def _pressure(sc) -> str:
+def _pressure(sc, chip='') -> str:
     if len(sc.pressure) < 2:
         return ""
     def _delta(d) -> str:
@@ -141,7 +160,7 @@ def _pressure(sc) -> str:
         f"<tr><td>{lvl}</td><td>{d['composite']:.1f}</td><td>{_delta(d)}</td>"
         f"<td>{pct(d['pass_rate'])}</td><td>{d['n_scenarios']}</td></tr>"
         for lvl, d in sorted(sc.pressure.items()))
-    return f"""<h2>Guardrail pressure (P0–P5)</h2>
+    return f"""<h2>Guardrail pressure (P0–P5) {chip}</h2>
 <p class='note'>Same scenario body, same entities, same seeds — only the framing changes.
 The number that matters is the <b>delta against the P0 control</b>, not the absolute
 score. Payloads are referenced by id and category only (§7.4).</p>
@@ -149,7 +168,7 @@ score. Payloads are referenced by id and category only (§7.4).</p>
 {rows}</table>"""
 
 
-def _variance(sc) -> str:
+def _variance(sc, chip='') -> str:
     """Two variance axes, reported side by side and never described as each other (§8.3)."""
     if sc.flaky_measurable:
         flaky_cell = (f"{len(sc.flaky)} scenario(s): " + ", ".join(_esc(s) for s in sc.flaky[:6])
@@ -158,27 +177,29 @@ def _variance(sc) -> str:
         flaky_cell = ("<b>not measurable in this run</b> — the agent under test is "
                       "deterministic, or N=1. An empty list here means <i>not measured</i>, "
                       "not <i>none found</i>.")
-    if sc.paraphrase_sensitive:
+    if sc.variant_sensitive:
         rows = "".join(
             f"<tr><td>{_esc(g['template_id'])}</td><td>{_esc(g['pressure_level'])}</td>"
             f"<td>{g['passing']} pass / {g['failing']} fail of {g['n_variants']}</td>"
-            f"<td>{g['spread']:.2f}</td></tr>" for g in sc.paraphrase_sensitive)
+            f"<td>{g['spread']:.2f}</td></tr>" for g in sc.variant_sensitive)
         para = (f"<table><tr><th>template</th><th>level</th><th>variants</th>"
                 f"<th>spread</th></tr>{rows}</table>")
     else:
         para = "<p class='note'>No template flipped outcome across its sibling variants.</p>"
 
-    return f"""<h2>Variance (§8.3)</h2>
+    return f"""<h2>Variance (§8.3) {chip}</h2>
 <p class='note'>Two different axes. They are measured separately and neither number is ever
 reported as the other.</p>
 <table class='meta'>
  <tr><th>flake quarantine<br><span class='ci'>N repeats of one identical instruction —
      decode nondeterminism</span></th><td>{flaky_cell}</td></tr>
 </table>
-<h3 style='margin-top:14px'>paraphrase sensitivity</h3>
-<p class='note'>Sibling variants of one template at one pressure level. Variants differ in
-wording <b>and</b> in the entities bound into them, so a flagged group means "not robust
-across its variants", not "not robust to wording alone".</p>
+<h3 style='margin-top:14px'>variant sensitivity</h3>
+<p class='note'>Sibling variants of one template at one pressure level. Audited against the
+frozen set, variants differ in <code>world_state</code>, <code>seed</code>,
+<code>faults</code>, <code>assertions</code> <b>and</b> <code>pressure_tags</code> — not
+only in wording. So a flagged group means "not robust across its variants"; it is
+<b>not</b> a paraphrase-sensitivity measurement and is not labelled as one.</p>
 {para}"""
 
 
@@ -292,6 +313,14 @@ pre{background:#f8fafc;border:1px solid var(--bd);border-radius:6px;padding:10px
 .instr{background:#f8fafc;padding:8px 10px;border-radius:6px}
 .steps{color:var(--mut);font-size:12px}
 .verdict{font-weight:600}
+.modebar{position:sticky;top:0;z-index:9;margin:-32px -32px 18px;padding:10px 32px;
+         font-size:13px;border-bottom:1px solid var(--bd)}
+.modebar.off{background:#fffbeb;color:#78350f}
+.modebar.on{background:#ecfdf5;color:#065f46}
+.modechip{font-size:11px;font-weight:600;border-radius:999px;padding:2px 9px;margin-left:8px;
+          vertical-align:middle;letter-spacing:.02em}
+.modechip.off{background:#fef3c7;color:#78350f;border:1px solid #fde68a}
+.modechip.on{background:#d1fae5;color:#065f46;border:1px solid #a7f3d0}
 footer{margin-top:40px;color:var(--mut);font-size:12px;border-top:1px solid var(--bd);padding-top:12px}
 """
 
@@ -306,19 +335,21 @@ def render_report(run_dir: Path, compare_dir: Path | None = None,
                  judge_used=meta.get("judge", {}).get("used", False),
                  cache_mode=meta.get("cache_mode", "off"))
 
+    chip = _mode_chip(meta)
     notes = "".join(f"<li>{_esc(n)}</li>" for n in sc.notes)
-    flaky = _variance(sc)
+    flaky = _variance(sc, chip)
 
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ARE report — {_esc(sc.agent_version)}</title><style>{CSS}</style></head><body>
+{_mode_bar(meta)}
 <h1>Agent Reliability Engine — scorecard</h1>
 <p class='sub'>{_esc(sc.agent_version)} on {_esc(meta.get('scenario_set'))} ·
 generated {_esc(meta.get('started_at'))}</p>
 {_headline(sc, meta)}
-{_categories(sc)}
-{_modes(sc)}
-{_pressure(sc)}
+{_categories(sc, chip)}
+{_modes(sc, chip)}
+{_pressure(sc, chip)}
 {_comparison(compare_dir, run_dir)}
 {flaky}
 {_drilldown(verdicts, scenarios, runs)}

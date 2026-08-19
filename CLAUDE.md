@@ -505,16 +505,19 @@ Standard CI hygiene; costs 15 lines; makes the tool feel real.
 > | Metric | Axis | Varies | Measurable when |
 > |---|---|---|---|
 > | `FLAKY` | N repeats of **one identical instruction** | model sampling only | the agent is nondeterministic and N≥2 |
-> | `PARAPHRASE_SENSITIVE` | sibling **variants** of one template at one pressure level | wording **and** bound entities | always, including offline |
+> | `VARIANT_SENSITIVE` | sibling **variants** of one template at one pressure level | wording, world state, seed, faults, assertions, payload id | always, including offline |
 >
 > `flaky_measurable` is reported alongside the flaky list so an empty list against a
 > deterministic agent reads as *not measured*, never as *none found*.
 >
-> `PARAPHRASE_SENSITIVE` flags a (template, pressure level) group whose sibling variants
-> disagree on outcome. Its honest caveat, carried in the report itself: variants differ in
-> wording *and* in bound entities, so a flag means "this task is not robust across its
-> variants", not "not robust to wording alone". Isolating pure paraphrase effect needs
-> variants that hold entities fixed — future work, not an implied claim.
+> **Named `VARIANT_SENSITIVE`, not `PARAPHRASE_SENSITIVE`.** The paraphrase name was used
+> first and was wrong: auditing the frozen set showed sibling variants differ in
+> `world_state`, `seed`, `faults`, `assertions` *and* `pressure_tags` — every variant seeds
+> its own world — so the wording contribution is confounded with entity binding, fault draw
+> and payload choice. A flag means "not robust across its variants". Earning the paraphrase
+> name requires generating siblings that hold seed and entities fixed and vary only
+> phrasing; that is a scenario-set change and therefore a re-freeze. Future work, not an
+> implied claim.
 
 ---
 

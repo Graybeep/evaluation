@@ -14,7 +14,7 @@ reviewer's trust (§6.1).
 
 Two variance axes are reported, never conflated (§8.3):
   * `flaky`                -> across N repeats of one identical instruction (decode noise)
-  * `paraphrase_sensitive` -> across sibling variants of one template (wording + entities)
+  * `variant_sensitive`    -> across sibling variants of one template (see its docstring)
 `flaky_measurable` says whether the first was even observable in this run.
 
 Everything reported here carries n, an interval, and the model/judge versions (§7.7).
@@ -61,7 +61,7 @@ class ScenarioRoll:
         found" from "flakiness not measurable in this mode".
 
         The *other* variance axis — wording — lives across sibling variants of a template
-        and is reported separately as `paraphrase_sensitive`. Two axes, two names; neither
+        and is reported separately as `variant_sensitive`. Two axes, two names; neither
         number is ever described as the other.
         """
         return self.n_valid >= 2 and 0 < self.n_pass < self.n_valid
@@ -102,7 +102,8 @@ class Scorecard:
     cache_mode: str = "off"
     notes: list[str] = field(default_factory=list)
     flaky_measurable: bool = True        # False -> deterministic agent or N=1
-    paraphrase_sensitive: list[dict] = field(default_factory=list)
+    variant_sensitive: list[dict] = field(default_factory=list)
+    defect_coverage: dict | None = None  # calibration runs only (§U3)
 
     @property
     def reportable(self) -> bool:
@@ -126,7 +127,8 @@ class Scorecard:
             "pressure": self.pressure,
             "flaky_scenarios": self.flaky,
             "flaky_measurable": self.flaky_measurable,
-            "paraphrase_sensitive": self.paraphrase_sensitive,
+            "variant_sensitive": self.variant_sensitive,
+            "defect_coverage": self.defect_coverage,
             "notes": self.notes,
         }
 
@@ -159,18 +161,24 @@ def roll_scenarios(verdicts: list[Verdict]) -> dict[str, ScenarioRoll]:
 DETERMINISTIC_MODELS = {"offline-scripted-policy", "deterministic"}
 
 
-def paraphrase_groups(verdicts: list[Verdict], rolls: dict[str, ScenarioRoll]) -> list[dict]:
+def variant_groups(verdicts: list[Verdict], rolls: dict[str, ScenarioRoll]) -> list[dict]:
     """Outcome spread across sibling variants of one template at one pressure level.
 
-    This is the **wording** axis, and it is a different measurement from `flaky`:
-      * `flaky`                -> same instruction, N repeats  -> decode nondeterminism
-      * `paraphrase_sensitive` -> same template + pressure level, different variants
+    A different measurement from `flaky`, and named for what it actually varies:
+      * `flaky`             -> same instruction, N repeats -> decode nondeterminism only
+      * `variant_sensitive` -> same template + pressure level, different variant
 
-    Honest caveat, stated because it changes how the number should be read: sibling variants
-    differ in wording *and* in the entities bound into them (each variant seeds its own
-    world). So a flagged group means "this task is not robust across its variants", not
-    "this task is not robust to wording alone". Isolating pure paraphrase effect needs
-    variants that hold entities fixed — noted as future work rather than implied here.
+    **This is deliberately NOT called paraphrase sensitivity.** That name was used first and
+    it was wrong. Auditing the frozen set showed sibling variants differ in `world_state`,
+    `seed`, `faults`, `assertions` *and* `pressure_tags` (a different payload id at the same
+    level) — not only in instruction text. Every variant seeds its own world, so a flagged
+    group means "this task is not robust across its variants", and the wording contribution
+    is confounded with entity binding, fault draw and payload choice.
+
+    Earning the name `paraphrase_sensitive` would require generating siblings that hold the
+    seed and every bound entity fixed and vary only the phrasing. That is a scenario-set
+    change (and therefore a re-freeze), and it is listed as future work rather than implied
+    by a label.
     """
     groups: dict[tuple[str, str], list[ScenarioRoll]] = defaultdict(list)
     tpl = {v.scenario_id: (v.template_id or v.scenario_id.split("__")[0]) for v in verdicts}
@@ -204,7 +212,8 @@ def _composite_from(rolls: list[ScenarioRoll]) -> float:
 
 def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str = "",
             judge_version: str | None = None, judge_used: bool = False,
-            cache_mode: str = "off", exclude_flaky: bool = False) -> Scorecard:
+            cache_mode: str = "off", exclude_flaky: bool = False,
+            defect_coverage: dict | None = None) -> Scorecard:
     rolls_all = roll_scenarios(verdicts)
     flaky = sorted(sid for sid, r in rolls_all.items() if r.flaky)
 
@@ -259,7 +268,7 @@ def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str
 
     max_repeats = max((r.n_valid for r in rolls_all.values()), default=0)
     flaky_measurable = max_repeats >= 2 and model_version not in DETERMINISTIC_MODELS
-    para = paraphrase_groups(verdicts, rolls_all)
+    variant_flags = variant_groups(verdicts, rolls_all)
 
     notes = []
     if invalid_rate > INVALID_RATE_CEILING:
@@ -275,9 +284,10 @@ def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str
     elif flaky:
         notes.append(f"{len(flaky)} scenario(s) flaky across repeats; "
                      f"{'excluded from' if exclude_flaky else 'included in'} this scorecard (§8.3)")
-    if para:
-        notes.append(f"{len(para)} template x pressure-level group(s) are paraphrase-sensitive: "
-                     f"outcome flips between sibling variants (wording + entity binding)")
+    if variant_flags:
+        notes.append(f"{len(variant_flags)} template x pressure-level group(s) are "
+                     f"variant-sensitive: outcome flips between sibling variants, which "
+                     f"differ in wording AND world state, seed, faults and payload id")
     if judge_used:
         notes.append("Findings marked LLM-judged are advisory and uncalibrated (§6.3, §11.1)")
 
@@ -287,4 +297,5 @@ def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str
         n_scenarios=len(usable), n_runs=n_runs, invalid_rate=invalid_rate,
         composite=comp_ci, pass_rate=pass_ci, per_category=per_category,
         per_mode=per_mode, pressure=pressure, flaky=flaky, notes=notes,
-        flaky_measurable=flaky_measurable, paraphrase_sensitive=para)
+        flaky_measurable=flaky_measurable, variant_sensitive=variant_flags,
+        defect_coverage=defect_coverage)
