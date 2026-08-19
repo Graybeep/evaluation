@@ -50,6 +50,9 @@ def assert_no_payload_text(html_doc: str) -> None:
 # ------------------------------------------------------------------ loading
 def _load(run_dir: Path):
     meta = json.loads((run_dir / "meta.json").read_text(encoding="utf-8"))
+    card = run_dir / "scorecard.json"
+    meta["_defect_coverage"] = (json.loads(card.read_text(encoding="utf-8")).get("defect_coverage")
+                                if card.exists() else None)
     verdicts = [Verdict(**v) for v in json.loads((run_dir / "verdicts.json").read_text(encoding="utf-8"))]
     scenarios = ScenarioSet(**json.loads((run_dir / "scenarios.json").read_text(encoding="utf-8"))).scenarios
     runs = []
@@ -203,10 +206,49 @@ only in wording. So a flagged group means "not robust across its variants"; it i
 {para}"""
 
 
+def _defect_coverage(cov: dict | None, chip: str = "") -> str:
+    """Detection reported on its own denominator, with an interval (§U3)."""
+    if not cov:
+        return ""
+    ci = cov.get("detection_ci") or {}
+    rate = ("n/a" if cov.get("detection_rate") is None
+            else f"{cov['detection_rate']:.0%}")
+    interval = (f" <span class='ci'>95% CI [{ci['low']:.2f}, {ci['high']:.2f}] "
+                f"(Wilson, n={ci['n']} scenarios)</span>" if ci else "")
+    return f"""<h2>Injected-defect coverage — {_esc(cov['marker'])} {chip}</h2>
+<p class='note'>Unit: {_esc(cov.get('unit', 'scenario'))}. The denominator is the scenarios
+where the defect actually fired and a rule could see it — not the whole suite. A bare
+"100%" would claim a certainty a sample of {ci.get('n', '?')} does not support.</p>
+<table class='meta'>
+ <tr><th>declared trigger</th><td>{_esc(cov['trigger'])}</td></tr>
+ <tr><th>detected</th><td><b>{cov['scenarios_detected']}/{cov['scenarios_detectable']}
+     = {rate}</b>{interval}</td></tr>
+ <tr><th>escaped</th><td>{cov['scenarios_escaped']} — fired, a rule could have seen it,
+     still passed. This is the number that matters.</td></tr>
+ <tr><th>blind spot</th><td>{cov['scenarios_blind_spot']} — fired, but the scenario has no
+     observable state change for a rule to check; only the (opt-in, uncalibrated) judge
+     could see these.</td></tr>
+ <tr><th>never fired</th><td>{cov['scenarios_gated_before_firing']} gated by the agent's own
+     safety path (it refused or asked first), {cov['scenarios_no_trigger']} never handed the
+     trigger. <b>A coverage limit of the scenario set, not a property of the
+     detector.</b></td></tr>
+ <tr><th>fired off-trigger</th><td>{cov['scenarios_fired_without_opportunity']} — a non-zero
+     value here means the agent's defect is firing for the wrong reason, which attribution
+     will not show.</td></tr>
+</table>"""
+
+
 def _drilldown(verdicts, scenarios, runs) -> str:
     by_scenario = {s.id: s for s in scenarios}
     by_run = {r.run_id: r for r in runs}
-    failing = [v for v in verdicts if v.outcome == "FAIL"]
+    # One entry per scenario. Repeats of a deterministic agent are identical, so without
+    # this the drill-down spends all its slots re-printing the same four failures.
+    failing, seen_scenarios = [], set()
+    for v in verdicts:
+        if v.outcome != "FAIL" or v.scenario_id in seen_scenarios:
+            continue
+        seen_scenarios.add(v.scenario_id)
+        failing.append(v)
     failing.sort(key=lambda v: (0 if any(f.severity == "CRITICAL" for f in v.findings) else 1))
     blocks = []
     for v in failing[:MAX_DRILLDOWN]:
@@ -241,7 +283,8 @@ def _drilldown(verdicts, scenarios, runs) -> str:
     if not blocks:
         blocks = ["<p>No failing runs.</p>"]
     return (f"<h2>Failing runs — trace drill-down</h2>"
-            f"<p class='note'>Showing up to {MAX_DRILLDOWN} failures, CRITICAL first. "
+            f"<p class='note'>Showing up to {MAX_DRILLDOWN} distinct failing scenarios, "
+            f"CRITICAL first (one entry per scenario, not per repeat). "
             f"Full traces: <code>traces.jsonl</code>.</p>{''.join(blocks)}")
 
 
@@ -350,6 +393,7 @@ generated {_esc(meta.get('started_at'))}</p>
 {_categories(sc, chip)}
 {_modes(sc, chip)}
 {_pressure(sc, chip)}
+{_defect_coverage(meta.get('_defect_coverage'), chip)}
 {_comparison(compare_dir, run_dir)}
 {flaky}
 {_drilldown(verdicts, scenarios, runs)}
