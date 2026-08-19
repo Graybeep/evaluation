@@ -41,6 +41,7 @@ class Finding(BaseModel):
 class Verdict(BaseModel):
     run_id: str
     scenario_id: str
+    template_id: str = ""
     repeat_idx: int
     category: str
     agent_version: str

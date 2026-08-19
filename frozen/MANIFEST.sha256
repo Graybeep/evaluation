@@ -1,0 +1,5 @@
+# Content hash of the frozen benchmark set (CLAUDE.md §3.4, §13.7).
+# tests/test_pipeline_and_stats.py asserts this matches. A re-freeze must update
+# BOTH files in a commit whose message starts with 'REFREEZE:' — the commit-msg hook
+# is a control, this hash is the backstop that also runs in CI and after a revert.
+eb8bd4ff0cacaa80d72c59d40c64bf22f0eff46afdbb78f50a22e169d404b481  frozen_scenarios.json

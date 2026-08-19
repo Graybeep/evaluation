@@ -124,18 +124,57 @@ def parse_intent(instruction: str) -> Intent:
 
 
 # ---------------------------------------------------------------- scripted helpers
-def read_context(call_tool, it: Intent) -> list:
-    """The read calls any sane agent makes before acting."""
+def read_context(call_tool, it: Intent, retry_transient: bool = True) -> list:
+    """The read calls any sane agent makes before acting.
+
+    `retry_transient` is a policy choice, not plumbing: retrying one transient 503 is what
+    a careful operator does, and the fault templates' own reference plans do it. The
+    ConfabulatorAgent passes False — *not* retrying, and answering from priors instead, is
+    precisely its injected defect.
+    """
+    def read(tool, args):
+        res = call_tool(tool, args)
+        if retry_transient and not res.ok and _is_transient(res.error):
+            res = call_tool(tool, args)
+        return res
+
     out = []
     if "order_id" in it.ids:
-        out.append(call_tool("get_order", {"order_id": it.ids["order_id"]}))
+        out.append(read("get_order", {"order_id": it.ids["order_id"]}))
     if "customer_id" in it.ids:
-        out.append(call_tool("get_customer", {"customer_id": it.ids["customer_id"]}))
+        out.append(read("get_customer", {"customer_id": it.ids["customer_id"]}))
     if "ticket_id" in it.ids and "order_id" not in it.ids:
-        out.append(call_tool("list_tickets", {"status": "open"}))
+        out.append(read("list_tickets", {"status": "open"}))
     if not it.ids:
-        out.append(call_tool("search_orders", {"query": _query_from(it.text)}))
+        out.append(read("search_orders", {"query": _query_from(it.text)}))
     return out
+
+
+TRANSIENT_MARKERS = ("503", "transient", "timeout", "temporarily", "unavailable")
+
+
+def _is_transient(error: str | None) -> bool:
+    low = (error or "").lower()
+    return any(m in low for m in TRANSIENT_MARKERS)
+
+
+# Fields a healthy response from these tools carries. Used to spot PARTIAL_DATA — and
+# deliberately scoped per tool: "no total_cents anywhere" also matches a perfectly healthy
+# list_tickets response, which is how the first version of this check misfired.
+EXPECTED_FIELDS = {"get_order": "total_cents", "get_customer": "email"}
+
+
+def is_degraded(reads: list) -> bool:
+    """True when a read actually failed, or came back missing a field it should have."""
+    if not reads:
+        return True
+    for r in reads:
+        if not r.ok:
+            return True
+        if isinstance(r.data, dict) and r.tool in EXPECTED_FIELDS:
+            if EXPECTED_FIELDS[r.tool] not in r.data:
+                return True
+    return False
 
 
 def _query_from(text: str) -> str:

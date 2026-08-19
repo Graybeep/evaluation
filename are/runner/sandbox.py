@@ -184,6 +184,33 @@ def _invalid(scenario, agent, repeat_idx, reason) -> RunResult:
     return r
 
 
+def l3_state(guard_network: bool = True) -> tuple[str, bool]:
+    """(description, is_os_enforced). L3 is only OS-enforced on the offline path.
+
+    The distinction matters enough to be a return value rather than prose: an *online* run
+    needs egress to the LLM API, so `network_mode: none` is off and all that remains is the
+    Python-level allowlist below — which is a control, not containment. The parent-process
+    unix-socket proxy that would give online runs OS-level deny is not implemented, so
+    online runs ship **L1 + L2 + L4**, which is exactly the fallback ladder §7.9 allows.
+    """
+    from are.runner.llm import api_key_present
+
+    if not guard_network:
+        return "OFF (--no-network-guard)", False
+    online = api_key_present()
+    if online:
+        return ("DEGRADED — online run: OS-level deny is off (egress to the LLM API is "
+                "required) and the unix-socket proxy is not implemented. "
+                "Process-level allowlist only: " + ", ".join(sorted(ALLOWED_HOSTS))
+                + ". Shipping L1+L2+L4 (§7.9 fallback ladder)."), False
+    if in_container():
+        return ("ON (OS-level) — offline container run; `network_mode: none` denies all "
+                "egress. Process-level allowlist also active."), True
+    return ("PARTIAL — offline host run: process-level allowlist only ("
+            + ", ".join(sorted(ALLOWED_HOSTS))
+            + "). Use `docker compose run offline` for OS-level deny."), False
+
+
 def sandbox_status(guard_network: bool = True) -> dict:
     """What is actually switched on right now. Printed by `cli.py selftest`."""
     try:
@@ -191,12 +218,11 @@ def sandbox_status(guard_network: bool = True) -> dict:
         l1 = "ON — all tools are World methods, no network path, no pass-through"
     except AssertionError as exc:
         l1 = f"BREACH — {exc}"
+    l3, _ = l3_state(guard_network)
     return {
         "L1_tool_mocking": l1,
         "L2_process_fs": "ON — child process, scratch tempdir as cwd",
-        "L3_network": ("ON (process-level guard; allowlist: "
-                       + ", ".join(sorted(ALLOWED_HOSTS)) + ")") if guard_network
-                      else "OFF (--no-network-guard)",
+        "L3_network": l3,
         "L4_budgets": f"ON — {SANDBOX_CAPS} enforced by the parent (inner limits in limits.LIMITS)",
         "not_claimed": "hypervisor / microVM isolation (§0 — deliberately out of scope)",
     }

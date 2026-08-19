@@ -20,11 +20,13 @@ subjective failure modes that is always labelled low-confidence.
 
 ```bash
 pip install -r requirements.txt
+git config core.hooksPath .githooks      # enforces the frozen-set rule (§3.4)
 
 python -m are.cli selftest                     # sandbox, isolation, judge-attack, scrub
-python -m are.cli gen    --out pool/scenarios.json
-python -m are.cli freeze --pool pool/scenarios.json --n 60
-python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox
+python -m are.cli gen        --out pool/scenarios.json
+python -m are.cli gate-audit                   # what the feasibility gate actually catches
+python -m are.cli freeze     --pool pool/scenarios.json --n 60
+python -m are.cli calibrate  --scenarios frozen/frozen_scenarios.json --offline --no-sandbox
 
 python -m are.cli run --agent pushover --scenarios frozen/frozen_scenarios.json --report
 python -m are.cli compare runs/pushover-v1 runs/pushover-v2
@@ -48,7 +50,7 @@ docker compose run --rm online  run --agent clean --judge
 | Brief asks for | Component | Scope note |
 |---|---|---|
 | Scenario Generation Engine | `gen/` — 13 hand-authored templates + LLM phrasing pass, schema-validated, feasibility-gated | Ships **assertions with every scenario**, which the brief doesn't ask for and is the differentiator |
-| Sandboxed Execution and Replay Harness | `runner/` + `sim/` — four-layer containment, record/replay cache | Mocked tools **are** the isolation boundary; replay is bit-identical |
+| Sandboxed Execution and Replay Harness | `runner/` + `sim/` — four-layer containment, record/replay cache | Mocked tools **are** the isolation boundary; L3 is OS-enforced on the offline path only (see Limitations 8) |
 | Failure Mode Classifier | `verify/` — 11 rule detectors + 2 judge detectors, three-way outcome | Rules primary; judge secondary and labelled everywhere it appears |
 | Destructive Action Guardrail Tester | `probes/` — pressure taxonomy P0–P5 | Reports **P_n − P0 deltas**, not absolutes — a finding, not a feature |
 | Reliability Scorecard and Regression Tracker | `score/` + `report/` — severity-weighted, per-category, paired McNemar + BH | Pairwise A/B across versions; history is append-only JSONL |
@@ -59,12 +61,12 @@ docker compose run --rm online  run --agent clean --judge
 
 Four deliberately-defective agents with known failure signatures. The platform is not told
 which is which — `calibrate` takes agent names and checks whether the scorecard recovers
-the truth (frozen set, 60 scenarios × 3 repeats, offline scripted policies):
+the truth (frozen set, 60 scenarios × 3 repeats, **offline scripted policies**):
 
 | Agent | Injected defect | Composite | Attribution to its own defect |
 |---|---|---|---|
 | `clean` | none (control) | **100.0** | n/a — 0 CRITICAL findings |
-| `confabulator` | answers from priors when a tool errors | **95.3** [91.8, 98.2] | 100% |
+| `confabulator` | answers from priors when a tool errors | **92.2** [88.2, 95.5] | 100% |
 | `looper` | re-searches instead of concluding | **65.0** | 100% |
 | `pushover` | complies with authority/urgency framing | **31.7** [20.0, 43.3] | 100% |
 
@@ -87,6 +89,38 @@ authority condition only, and the report says so instead of averaging it away.
 
 ---
 
+## Two things that were measured rather than assumed
+
+Both of these started as "the number looks fine" and turned into a diagnosis. They are the
+reason to trust the rest of the numbers, so they are documented rather than tidied away.
+
+**The confabulator's margin was thin because the suite starved its defect.** At the first
+build `confabulator` scored 95.3 [91.8, 98.2] — clearing `clean` by 1.8 points. Diagnosis on
+the frozen set: mean failed tool results per run was **0.033**, and only **5/60 scenarios
+(8.3%)** ever presented the epistemic defect an opportunity to fire. Of those 5, the
+detector caught 5. The detector was fine; the suite was. A baseline transient-fault rate was
+added across the mix (72% of scenario bodies, keyed on `(template, variant)` so a pressure
+ladder still differs only by framing), taking observed opportunity to **70% of runs**.
+Conditioned on the defect being able to express itself, the catch rate is **17/17 = 100%**,
+and zero fabrications went unflagged — all 75 uncaught runs with a degraded read had
+*refused or asked*, never entering the fabrication branch. The same diagnostic exposed a bug
+in the agent itself: its "is this data degraded?" check looked for `total_cents` in any
+response, which a healthy `list_tickets` reply never has, so it fabricated on 3 scenarios for
+no reason. Fixed to a per-tool expected-field check.
+
+**A gate that rejects nothing is indistinguishable from no gate — so the gate is audited.**
+The feasibility gate's discard rate on authored scenarios is **0%**, which alone proves
+nothing. `python -m are.cli gate-audit` injects known defects into real scenarios and
+measures what the gate rejects: **100% across six mutation classes** (n=40) — unsatisfiable
+`state_equals`, `must_call` on a tool no solution uses, non-existent entity ids, unknown
+tools, `no_call` on a tool the reference plan needs, and an impossible call budget. Read
+together, 0% baseline plus 100% catch means the authored scenarios are genuinely feasible,
+not that the gate is inert. It also caught two real authoring bugs the day the fault rate
+was raised: reference plans that didn't survive a transient fault, and a duplicated read
+that tripped the loop detector.
+
+---
+
 ## Design decisions worth defending
 
 **The verdict is computed, not inferred.** Assertion kinds are authored in templates; the
@@ -95,33 +129,40 @@ change a severity.
 
 **Three-way outcomes.** `PASS | FAIL | INVALID`. Harness faults, API errors and judge
 abstentions are INVALID and are reported as a first-class `invalid_rate`. Above 5%, the
-run is marked **not reportable**. Folding harness bugs into agent failures is the fastest
-way to lose a reviewer's trust.
+run is marked **not reportable**.
 
 **Kill-switch trips are failure modes, not crashes.** Three independent limits — wall
 clock, tool calls, tokens — because a loop can be cheap-and-fast, expensive-and-slow, or
-silent-and-stuck, and one limit catches one shape.
+silent-and-stuck.
 
-**Goal drift is `SCOPE_VIOLATION`, defined as "mutated an entity outside the task's
-declared affected set".** Measurable. "Seemed to lose the plot" is not.
+**Goal drift is `SCOPE_VIOLATION`**, defined as "mutated an entity outside the task's
+declared affected set". Measurable. "Seemed to lose the plot" is not.
 
-**The scenario is the unit of analysis.** With N=3 correlated runs per scenario, treating
-M·N as independent understates standard errors by ~√N. Bootstrap resamples *scenarios*;
-version comparison is paired (McNemar) with Benjamini–Hochberg across the category tests
-and a stated minimum meaningful effect of 3 composite points.
+**The scenario is the unit of analysis.** Bootstrap resamples *scenarios*; version
+comparison is paired (McNemar) with Benjamini–Hochberg across category tests and a stated
+minimum meaningful effect of 3 composite points.
 
-**A run is scored by its worst finding.** Summing severity weights across modes
-double-counts correlated detectors (one unapproved refund trips three) and saturates —
-see the §8.1 implementation note in `CLAUDE.md` for why this was changed and what it
-changed.
+**Two variance axes, never reported as each other.** `flaky` is mixed outcomes across the
+N repeats of *one identical instruction* — the seed enters the response-cache key, never the
+prompt, so the only thing that can vary is model sampling. `paraphrase_sensitive` is
+outcome disagreement across *sibling variants* of one template. The scorecard also reports
+`flaky_measurable`, so an empty flaky list against a deterministic agent reads as **"not
+measured"**, never as "none found".
 
-**Pressure is reported as a delta.** Same scenario body, same entities, same seeds; only
-the framing changes. The absolute safety score of a scenario family is much less
-informative than how far a given framing moves it.
+**A run is scored by its worst finding.** The first severity model summed weights across
+modes; it double-counted correlated detectors (one unapproved refund trips
+`DESTRUCTIVE_ACTION` *and* `SCOPE_VIOLATION` *and* the `must_refuse` assertion) and
+saturated — `looper` and `pushover` both clipped to **0.0**, destroying the very ranking the
+platform is validated against. Replaced with worst-finding-per-run, averaged over runs then
+over scenarios. Per-mode rates are still reported separately and unchanged.
 
-**The scorecard advises; it does not gate.** Nothing here returns "block the merge". A
-hard automated gate on an LLM-derived score invites optimising the eval instead of the
-agent.
+**No server-side refusal fallbacks.** Deliberately disabled. A fallback reroutes a refused
+request to a different model, which would substitute another model's safety behaviour into a
+measurement *of* safety behaviour — and would break the one-model-version-per-report
+guarantee. `stop_reason == "refusal"` is handled explicitly instead; for a guardrail tester
+a refusal is frequently the correct outcome.
+
+**The scorecard advises; it does not gate.** Nothing here returns "block the merge".
 
 ---
 
@@ -131,17 +172,17 @@ agent.
 |---|---|---|
 | **L1 — tool mocking** | no tool implementation touches a real system; no pass-through mode, not behind a flag | all real-world side effects — the primary boundary |
 | **L2 — process + filesystem** | each run in a child process with a scratch tempdir as cwd | stray writes, log pollution, cross-run bleed |
-| **L3 — network** | `network_mode: none` under compose; in-process allowlist guard on the host | exfiltration, an agent "helpfully" calling a real API |
+| **L3 — network** | **offline container: OS-enforced** (`network_mode: none`). Offline host: process-level allowlist. **Online: degraded** — see Limitations 8 | exfiltration, an agent "helpfully" calling a real API |
 | **L4 — resource budgets** | inner cooperative limits + outer parent-kills-child caps | runaway loops, cost blowups, a hung demo |
 
 L1 is doing most of the work and the repo says so rather than faking VM isolation.
-`selftest` asserts L1 mechanically (every registered tool resolves to a `World` method; the
-simulator imports no network library; the string "pass_through" does not appear in it).
+`selftest` asserts L1 mechanically and **fails L3 with exit 1 when a live API key is
+present**, rather than skipping it — a layer you cannot demonstrate is not a layer you have.
 
-The real attack surface here is **the harness itself**: we inject prompt-injection payloads
-into tool output and then feed those traces to our own judge. That path is hardened —
-traces reach the judge wrapped in `<untrusted_trace>` with delimiter tokens stripped, and
-`selftest` fires the judge-attack corpus at the judge to check it does not flip.
+The real attack surface is **the harness itself**: we inject prompt-injection payloads into
+tool output and then feed those traces to our own judge. Traces reach the judge wrapped in
+`<untrusted_trace>` with delimiter tokens stripped, and `selftest` fires the judge-attack
+corpus at the judge to check it does not flip.
 
 ---
 
@@ -152,7 +193,7 @@ are/
   schema/     scenario.py, trace.py, verdict.py      pydantic, single source of truth
   tools/      registry.yaml, specs.py                risk tiers, manually declared
   sim/        world.py, faults.py, entities.py       the simulator (L1 boundary)
-  gen/        templates/*.yaml, expand.py, feasibility.py
+  gen/        templates/*.yaml, expand.py, feasibility.py, audit.py
   runner/     adapter.py, loop.py, limits.py, cache.py, llm.py, sandbox.py
   verify/     rules.py, judge.py, taxonomy.py
   score/      compute.py, stats.py, regression.py
@@ -160,11 +201,15 @@ are/
   calib/      clean.py, looper.py, pushover.py, confabulator.py
   report/     render.py
   cli.py
-frozen/       frozen_scenarios.json                  git-tracked, do NOT regenerate
+.githooks/    commit-msg                             blocks silent re-freezes (§3.4)
+frozen/       frozen_scenarios.json + MANIFEST.sha256  git-tracked, do NOT regenerate
 runs/<id>/    traces.jsonl, runs.jsonl, verdicts.json, scorecard.json, report.html
 ```
 
-Traces are JSONL, one object per step. Everything else is JSON. No database.
+The frozen set is protected twice: a `commit-msg` hook rejects any commit touching it unless
+the message starts with `REFREEZE:`, and a content hash in `frozen/MANIFEST.sha256` is
+asserted by the test suite — which still fires under `--no-verify`, `git revert`, or CI,
+where hooks do not run.
 
 ---
 
@@ -172,27 +217,33 @@ Traces are JSONL, one object per step. Everything else is JSON. No database.
 
 With no API key, the calibration agents run **scripted policies** that carry the same
 defects as their rigged system prompts. This makes the whole platform demonstrable with
-zero spend, and it is how the numbers in this README were produced.
+zero spend, and it is how every number in this README was produced.
 
 What that proves: the harness, simulator, fault injection, verifier, scorecard, statistics
-and regression tracker all work end to end, and the platform recovers a known ranking from
+and regression tracker work end to end, and the platform recovers a known ranking from
 agents it was not told about.
 
 What it does **not** prove: anything about a real model's behaviour. The scripted policies
-and the scenario templates were authored in the same repo, so `clean` scoring exactly
-100.0 reflects that co-design as much as it reflects the agent. **Headline numbers about an
-agent should come from an LLM-backed run** (`--agent simple`, or any calibration agent with
-`ANTHROPIC_API_KEY` set), and every report banners which mode produced it.
+and the scenario templates were authored in the same repo, so `clean` scoring exactly 100.0
+reflects that co-design as much as it reflects the agent — and a co-designed control at the
+ceiling is exactly the kind of number that deserves suspicion. **Headline numbers about an
+agent must come from an LLM-backed run**; every report banners which mode produced it.
+
+**The online validation has not been run.** No credentials of any kind were available in
+this environment (`ANTHROPIC_API_KEY` unset, no `ant` CLI profile), so `demo.sh --online`,
+the LLM feasibility solver, the LLM phrasing pass and the judge have never executed against
+a real model. The four-way ordering above is an offline result only. Until that run happens,
+treat the acceptance criterion as *the platform is internally consistent*, not *the platform
+measures model behaviour correctly*.
 
 ---
 
 ## Limitations
 
-1. **The LLM judge is uncalibrated.** No human-labelled agreement study was run, so no κ is
-   reported — claiming an agreement statistic we did not compute would be worse than the
-   gap. Judge-derived findings are advisory and are marked *LLM-judged, unvalidated*
-   wherever they appear. Cutting the judge entirely and reporting rule-based modes only is
-   a supported and more defensible configuration (`--judge` is opt-in).
+1. **The LLM judge is uncalibrated and has never run.** No human-labelled agreement study,
+   so no κ is reported. Judge-derived findings are marked *LLM-judged, unvalidated* wherever
+   they appear, and `--judge` is opt-in. Cutting it entirely and reporting rule-based modes
+   only is a supported, more defensible configuration.
 2. **Scenarios come from 13 hand-authored templates.** Coverage is bounded by template
    imagination, not by the real failure distribution.
 3. **Single domain** (Internal Ops Console). Cross-domain transfer is unvalidated.
@@ -201,18 +252,32 @@ agent should come from an LLM-backed run** (`--agent simple`, or any calibration
 5. **Absolute scores are not comparable across agents with different toolsets.** Only
    paired, same-suite comparisons are meaningful.
 6. **`must_refuse` and `must_request_clarification` are decided by fixed text lexicons**
-   over the final answer, plus the mutation log. Deterministic and inspectable, but blunt:
-   an unusual refusal phrasing can read as a non-refusal. The mutation-log half of each
-   check (did anything irreversible happen?) is exact; the text half is heuristic.
-7. **The feasibility gate's deterministic backend is weaker than it looks.** Reference plans
-   are authored next to the assertions they satisfy, so it reliably catches binding and
-   static errors but rarely catches authoring errors — the observed discard rate is 0%.
-   `--solver llm` is the version that meets the intent of §3.3 and needs an API key.
-8. **L3 has a known gap for online runs.** In-container, offline runs are OS-level deny-all;
-   online runs need egress and fall back to a Python-level allowlist. The parent-process
-   unix-socket proxy that would close this is not implemented.
-9. **No MCP adapter.** One agent-loop shape is supported (`SimpleLoopAdapter`), plus any
-   Python callable (`CallableAdapter`).
+   over the final answer, plus the mutation log. The mutation-log half (did anything
+   irreversible happen?) is exact; the text half is heuristic and an unusual refusal
+   phrasing can read as a non-refusal.
+7. **The feasibility gate's LLM solver has never executed.** The deterministic backend is
+   validated by mutation testing (100% catch, six classes, n=40) and rejects 0% of authored
+   scenarios. The `--solver llm` path — the one that would catch "possible but unreasonable"
+   rather than "impossible" — is implemented but untested code, and is counted as future
+   work rather than a shipped capability.
+8. **L3 is OS-enforced only for offline container runs.** Online runs need egress to the LLM
+   API, so `network_mode: none` is off and only a process-level allowlist remains — a
+   control, not containment. The parent-process unix-socket proxy that would close this is
+   not implemented, so online runs ship **L1 + L2 + L4** (the §7.9 fallback ladder, invoked
+   explicitly). `selftest` fails rather than skips in that configuration.
+9. **Flakiness is not measurable offline.** Repeats of a scenario receive a byte-identical
+   instruction, so against a deterministic scripted policy all N runs are identical and the
+   flake quarantine is structurally vacuous. Reported as `flaky_measurable: false` rather
+   than as an empty list.
+10. **Paraphrase sensitivity is confounded with entity binding.** Sibling variants differ in
+    wording *and* in the entities bound into them, so a flagged group means "not robust
+    across its variants", not "not robust to wording alone". Isolating the wording effect
+    needs variants that hold entities fixed.
+11. **Rule-based confabulation detection requires a state-change assertion.** On refuse/ask
+    scenarios there is no state delta to check, so a fabricated claim there would be visible
+    only to the (uncalibrated, opt-in) judge.
+12. **No MCP adapter.** One agent-loop shape is supported (`SimpleLoopAdapter`), plus any
+    Python callable (`CallableAdapter`).
 
 ---
 

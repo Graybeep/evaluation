@@ -280,6 +280,24 @@ Variance across scenarios dominates variance within scenarios. 180 scenarios × 
 strictly better design than 30 × 20 for the same cost. N=3 exists to detect flakiness, not
 to tighten per-scenario CIs.
 
+> **Clarified 2026-08-20 (implementation).** What N=3 varies, precisely: **nothing in the
+> prompt.** All repeats of a scenario receive the byte-identical instruction; the scenario
+> seed enters the response-cache key and the fault engine, never the request. So the only
+> thing that can differ between repeats is the model's own sampling. N=3 therefore measures
+> **within-scenario decode nondeterminism** — which is what §8.3's flake quarantine has
+> always been about, and which the removal of `temperature` (§4.5) does not change: the
+> models are nondeterministic by default, we simply cannot tune the amount.
+>
+> Two consequences the harness now states rather than hides:
+>
+> 1. Against a **deterministic** agent — the offline scripted policies, or a cached
+>    `--replay` run — repeats are byte-identical and flakiness is *structurally
+>    unmeasurable*. The scorecard reports `flaky_measurable: false` and says "not measured"
+>    instead of printing an empty list that reads as "none found".
+> 2. Wording variance is a **different axis** and lives *across* sibling variants of a
+>    template (`__v0`, `__v1`, …), not within a scenario. It is reported separately as
+>    `paraphrase_sensitive` (§8.3). Neither number is ever described as the other.
+
 ---
 
 ## 5. Component 3 — Calibration agents (BUILD THESE FIRST, DAY 1)
@@ -400,11 +418,26 @@ cheap and each is independently defensible.
 |---|---|---|
 | **L1 — Tool mocking** | No tool implementation touches a real system. No pass-through mode, ever, not behind a flag. | All real-world side effects. This is the primary boundary. |
 | **L2 — Process + filesystem** | Agent runs in a subprocess with a scratch tempdir as cwd, read-only mounts elsewhere. | Stray file writes, log pollution, cross-run bleed. |
-| **L3 — Network** | Deny-by-default at the container level (`--network none`). LLM calls go via a parent-process proxy over a unix socket, enforced by the OS, not by application code. | Exfiltration, unexpected egress, an agent "helpfully" calling a real API. |
+| **L3 — Network** *(offline runs only — see correction)* | Deny-by-default at the container level (`--network none`). LLM calls go via a parent-process proxy over a unix socket, enforced by the OS, not by application code. | Exfiltration, unexpected egress, an agent "helpfully" calling a real API. |
 | **L4 — Resource budgets** | Wall-clock 120s, tool-call depth 25, token spend 50k. Independent, any one trips → terminate. | Runaway loops, cost blowups, a hung run during a live demo. |
 
 If Docker plumbing eats >90 minutes on Day 1, ship **L1 + L2 + L4** and add L3 later.
 L1 is doing ~90% of the work; say so honestly rather than faking VM isolation.
+
+> **Corrected 2026-08-20 (implementation). The L3 row above is true of offline runs only.**
+> The unix-socket proxy is **not implemented**. What actually ships:
+>
+> | Path | L3 state |
+> |---|---|
+> | `docker compose run offline` | **OS-enforced.** `network_mode: none` denies all egress. |
+> | offline on the host | **Partial.** Process-level allowlist in `runner/sandbox.py` — a control, not containment. |
+> | any **online** run (live API key) | **Degraded.** Egress to the LLM API is required, so OS-level deny is off. This is the demo path. |
+>
+> Online runs therefore ship **L1 + L2 + L4** — the fallback ladder this very section
+> allows, invoked explicitly rather than quietly. `cli.py selftest` **fails** (exit 1) when
+> it finds a live API key, rather than skipping the check: a layer you cannot demonstrate
+> is not a layer you have. Closing this means implementing the proxy, and until then the
+> L3 claim in the table must not be made without the qualifier.
 
 ### 7.6 The scorecard advises, it does not gate
 Never wire this to auto-merge or auto-block. A hard automated gate on an LLM-derived score
@@ -448,6 +481,9 @@ per-scenario pass proportion first, then compute intervals across scenarios.
 
 - **Intervals:** bootstrap over *scenarios* (resample scenarios, not runs), 2000 draws.
   Wilson interval is an acceptable fallback if bootstrap is buggy at 2am.
+  The within-scenario axis being averaged over is **decode variance**, not paraphrase
+  variance (§4.6 clarification) — paraphrase variance sits *between* scenarios and is
+  therefore already inside the bootstrap's resampling unit, not collapsed by it.
 - **Version comparison must be paired:** identical scenario set, identical seeds, identical
   world states. Then **McNemar's test on pass↔fail flips**. An unpaired two-proportion
   test throws away the pairing and needs several times the sample size for the same power.
@@ -457,10 +493,28 @@ per-scenario pass proportion first, then compute intervals across scenarios.
 - **Report effect size, not just p.** A statistically significant 0.4-point drop is noise
   in practice. Set a minimum meaningful effect (suggest: 3 points composite) and say so.
 
-### 8.3 Flake quarantine
+### 8.3 Flake quarantine — and the second variance axis
+
 A scenario that produces mixed outcomes across its N runs *at baseline* is `FLAKY`.
 Flaky scenarios are excluded from regression tests and reported in their own section.
 Standard CI hygiene; costs 15 lines; makes the tool feel real.
+
+> **Extended 2026-08-20 (implementation).** There are **two** variance axes and they must
+> never be reported as each other:
+>
+> | Metric | Axis | Varies | Measurable when |
+> |---|---|---|---|
+> | `FLAKY` | N repeats of **one identical instruction** | model sampling only | the agent is nondeterministic and N≥2 |
+> | `PARAPHRASE_SENSITIVE` | sibling **variants** of one template at one pressure level | wording **and** bound entities | always, including offline |
+>
+> `flaky_measurable` is reported alongside the flaky list so an empty list against a
+> deterministic agent reads as *not measured*, never as *none found*.
+>
+> `PARAPHRASE_SENSITIVE` flags a (template, pressure level) group whose sibling variants
+> disagree on outcome. Its honest caveat, carried in the report itself: variants differ in
+> wording *and* in bound entities, so a flag means "this task is not robust across its
+> variants", not "not robust to wording alone". Isolating pure paraphrase effect needs
+> variants that hold entities fixed — future work, not an implied claim.
 
 ---
 

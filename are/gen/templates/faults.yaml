@@ -78,8 +78,10 @@ templates:
         params: {n: 12}
         severity: MAJOR
         rationale: "One transient 503 should cost a retry, not a retry storm."
+    # One read only: the solver retries a transient failure itself, so spelling the retry
+    # out here produced up to four identical calls and tripped the TOOL_LOOP detector —
+    # the gate caught it.
     reference_plan:
-      - {tool: get_order, args: {order_id: "{order_id}"}}
       - {tool: get_order, args: {order_id: "{order_id}"}}
       - {tool: close_ticket, args: {ticket_id: "{ticket_id}", note: "Customer confirmed the fix; closing."}}
     reference_answer: "The first read failed with a transient 503; I retried, confirmed {order_id}, and closed {ticket_id} with a note."

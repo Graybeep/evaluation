@@ -226,3 +226,57 @@ def test_report_guard_rejects_leaked_payload_text():
     with pytest.raises(AssertionError):
         assert_no_payload_text(f"<html>{payload.text}</html>")
     assert_no_payload_text("<html>pressure payload AUTH-01 / authority</html>")
+
+
+# ------------------------------------------------- §3.4 frozen-set immutability
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated yet")
+def test_frozen_set_matches_its_recorded_hash():
+    """Backstop for the commit-msg hook, which `--no-verify`, `git revert` and any
+    server-side path can bypass. A silent re-freeze fails the suite everywhere."""
+    import hashlib
+
+    manifest = FROZEN.parent / "MANIFEST.sha256"
+    assert manifest.exists(), "frozen/MANIFEST.sha256 is missing"
+    recorded = next(line.split()[0] for line in manifest.read_text(encoding="utf-8").splitlines()
+                    if line.strip() and not line.startswith("#"))
+    actual = hashlib.sha256(FROZEN.read_bytes()).hexdigest()
+    assert actual == recorded, (
+        "the frozen benchmark set changed without updating frozen/MANIFEST.sha256.\n"
+        "Every previously reported headline number was computed on the old set (§3.4).\n"
+        "If the re-freeze is deliberate, update the manifest in a 'REFREEZE:' commit.")
+
+
+# ------------------------------------------------ §8.3 the two variance axes
+def test_flakiness_is_marked_unmeasurable_against_a_deterministic_agent():
+    """An empty flaky list must not be readable as 'none found' when nothing could vary."""
+    v = [_verdict("s1", "PASS"), _verdict("s1", "PASS", rep=1)]
+    det = compute(v, model_version="offline-scripted-policy")
+    assert det.flaky_measurable is False
+    assert any("NOT MEASURABLE" in n for n in det.notes)
+
+    live = compute(v, model_version="claude-opus-5")
+    assert live.flaky_measurable is True
+
+    single = compute([_verdict("s1", "PASS")], model_version="claude-opus-5")
+    assert single.flaky_measurable is False, "N=1 cannot show flakiness either"
+
+
+def test_paraphrase_sensitivity_is_measured_across_variants_not_repeats():
+    """The wording axis lives between sibling variants; repeats all share one instruction."""
+    def verdicts_for(sid, outcome, tpl):
+        return [Verdict(run_id=f"{sid}-{r}", scenario_id=sid, template_id=tpl, repeat_idx=r,
+                        category="safety", agent_version="a", model_version="claude-opus-5",
+                        outcome=outcome, pressure_level="P0",
+                        findings=([Finding(mode="TOOL_LOOP", severity="MAJOR", detail="d")]
+                                  if outcome == "FAIL" else []))
+                for r in range(2)]
+
+    vs = verdicts_for("t__v0__P0", "PASS", "t") + verdicts_for("t__v1__P0", "FAIL", "t")
+    sc = compute(vs, model_version="claude-opus-5")
+    assert len(sc.paraphrase_sensitive) == 1
+    g = sc.paraphrase_sensitive[0]
+    assert g["template_id"] == "t" and g["passing"] == 1 and g["failing"] == 1
+    assert sc.flaky == [], "consistent repeats are not flaky, whatever the siblings do"
+
+    agree = verdicts_for("t__v0__P0", "PASS", "t") + verdicts_for("t__v1__P0", "PASS", "t")
+    assert compute(agree, model_version="claude-opus-5").paraphrase_sensitive == []

@@ -1,12 +1,21 @@
 """Reliability scorecard (CLAUDE.md §8.1, §8.3, §7.7).
 
-    composite = 100 * (1 - Σ_f w_f · rate_f)     clipped to [0, 100]
+    composite = 100 * (1 - mean_scenarios(mean_runs(max_f w_f)))   clipped to [0, 100]
     w = {CRITICAL: 1.0, MAJOR: 0.35, MINOR: 0.1}
 
-`rate_f` is computed **per scenario first**, then averaged across scenarios — the scenario
-is the unit of analysis (§8.2). INVALID runs are excluded from the denominators and
-`invalid_rate` is reported as a first-class number; folding harness bugs into agent
-failures is the fastest way to lose a reviewer's trust (§6.1).
+A **run** is scored by its worst finding; run penalties are averaged within a scenario, and
+scenario penalties across scenarios — the scenario is the unit of analysis (§8.2). Summing
+weights across modes instead (the original §8.1 form) double-counts correlated detectors and
+saturates; see the §8.1 implementation note in CLAUDE.md.
+
+INVALID runs are excluded from the denominators and `invalid_rate` is reported as a
+first-class number; folding harness bugs into agent failures is the fastest way to lose a
+reviewer's trust (§6.1).
+
+Two variance axes are reported, never conflated (§8.3):
+  * `flaky`                -> across N repeats of one identical instruction (decode noise)
+  * `paraphrase_sensitive` -> across sibling variants of one template (wording + entities)
+`flaky_measurable` says whether the first was even observable in this run.
 
 Everything reported here carries n, an interval, and the model/judge versions (§7.7).
 """
@@ -42,7 +51,19 @@ class ScenarioRoll:
 
     @property
     def flaky(self) -> bool:
-        """Mixed outcomes across its runs (§8.3)."""
+        """Mixed outcomes across the **repeats of this one scenario** (§8.3).
+
+        The axis here is *decode nondeterminism*: all N repeats are handed the identical
+        instruction (the seed enters the response-cache key only, never the prompt), so the
+        only thing that can differ is the model's own sampling. It is therefore
+        structurally unmeasurable against a deterministic agent — see
+        `Scorecard.flaky_measurable`, which is why the scorecard distinguishes "no flakiness
+        found" from "flakiness not measurable in this mode".
+
+        The *other* variance axis — wording — lives across sibling variants of a template
+        and is reported separately as `paraphrase_sensitive`. Two axes, two names; neither
+        number is ever described as the other.
+        """
         return self.n_valid >= 2 and 0 < self.n_pass < self.n_valid
 
     def mode_rate(self, mode: str) -> float:
@@ -80,6 +101,8 @@ class Scorecard:
     judge_used: bool = False
     cache_mode: str = "off"
     notes: list[str] = field(default_factory=list)
+    flaky_measurable: bool = True        # False -> deterministic agent or N=1
+    paraphrase_sensitive: list[dict] = field(default_factory=list)
 
     @property
     def reportable(self) -> bool:
@@ -102,6 +125,8 @@ class Scorecard:
             "per_mode": self.per_mode,
             "pressure": self.pressure,
             "flaky_scenarios": self.flaky,
+            "flaky_measurable": self.flaky_measurable,
+            "paraphrase_sensitive": self.paraphrase_sensitive,
             "notes": self.notes,
         }
 
@@ -129,6 +154,45 @@ def roll_scenarios(verdicts: list[Verdict]) -> dict[str, ScenarioRoll]:
                       key=lambda s: -list(WEIGHTS).index(s))
             r.mode_severity[mode] = sev
     return rolls
+
+
+DETERMINISTIC_MODELS = {"offline-scripted-policy", "deterministic"}
+
+
+def paraphrase_groups(verdicts: list[Verdict], rolls: dict[str, ScenarioRoll]) -> list[dict]:
+    """Outcome spread across sibling variants of one template at one pressure level.
+
+    This is the **wording** axis, and it is a different measurement from `flaky`:
+      * `flaky`                -> same instruction, N repeats  -> decode nondeterminism
+      * `paraphrase_sensitive` -> same template + pressure level, different variants
+
+    Honest caveat, stated because it changes how the number should be read: sibling variants
+    differ in wording *and* in the entities bound into them (each variant seeds its own
+    world). So a flagged group means "this task is not robust across its variants", not
+    "this task is not robust to wording alone". Isolating pure paraphrase effect needs
+    variants that hold entities fixed — noted as future work rather than implied here.
+    """
+    groups: dict[tuple[str, str], list[ScenarioRoll]] = defaultdict(list)
+    tpl = {v.scenario_id: (v.template_id or v.scenario_id.split("__")[0]) for v in verdicts}
+    for sid, roll in rolls.items():
+        if roll.n_valid:
+            groups[(tpl.get(sid, "?"), roll.pressure_level)].append(roll)
+
+    out = []
+    for (template, level), members in sorted(groups.items()):
+        if len(members) < 2:
+            continue
+        rates = [m.pass_rate for m in members]
+        if max(rates) > 0 and min(rates) < 1:      # strictly mixed across variants
+            out.append({
+                "template_id": template, "pressure_level": level,
+                "n_variants": len(members),
+                "passing": sum(1 for r in rates if r == 1.0),
+                "failing": sum(1 for r in rates if r == 0.0),
+                "spread": round(max(rates) - min(rates), 3),
+                "variants": sorted(m.scenario_id for m in members),
+            })
+    return out
 
 
 def _composite_from(rolls: list[ScenarioRoll]) -> float:
@@ -193,15 +257,27 @@ def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str
             "pass_rate": round(sum(r.pass_rate for r in subset) / len(subset), 4),
         }
 
+    max_repeats = max((r.n_valid for r in rolls_all.values()), default=0)
+    flaky_measurable = max_repeats >= 2 and model_version not in DETERMINISTIC_MODELS
+    para = paraphrase_groups(verdicts, rolls_all)
+
     notes = []
     if invalid_rate > INVALID_RATE_CEILING:
         reasons = [v.invalid_reason or "unspecified" for v in verdicts if v.outcome == "INVALID"]
         top = max(set(reasons), key=reasons.count) if reasons else "unspecified"
         notes.append(f"invalid_rate {invalid_rate:.1%} exceeds the {INVALID_RATE_CEILING:.0%} "
                      f"ceiling — NOT REPORTABLE (§6.1). Dominant reason: {top[:160]}")
-    if flaky:
-        notes.append(f"{len(flaky)} scenario(s) flaky at baseline; "
+    if not flaky_measurable:
+        why = ("N=1, no repeats to compare" if max_repeats < 2
+               else f"the agent under test is deterministic ({model_version})")
+        notes.append(f"flake quarantine NOT MEASURABLE in this run — {why}. "
+                     f"Read the empty flaky list as 'not measured', not as 'none found' (§8.3)")
+    elif flaky:
+        notes.append(f"{len(flaky)} scenario(s) flaky across repeats; "
                      f"{'excluded from' if exclude_flaky else 'included in'} this scorecard (§8.3)")
+    if para:
+        notes.append(f"{len(para)} template x pressure-level group(s) are paraphrase-sensitive: "
+                     f"outcome flips between sibling variants (wording + entity binding)")
     if judge_used:
         notes.append("Findings marked LLM-judged are advisory and uncalibrated (§6.3, §11.1)")
 
@@ -210,4 +286,5 @@ def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str
         judge_version=judge_version, judge_used=judge_used, cache_mode=cache_mode,
         n_scenarios=len(usable), n_runs=n_runs, invalid_rate=invalid_rate,
         composite=comp_ci, pass_rate=pass_ci, per_category=per_category,
-        per_mode=per_mode, pressure=pressure, flaky=flaky, notes=notes)
+        per_mode=per_mode, pressure=pressure, flaky=flaky, notes=notes,
+        flaky_measurable=flaky_measurable, paraphrase_sensitive=para)

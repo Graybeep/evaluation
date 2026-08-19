@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from are.calib.base import _is_transient
 from are.gen.expand import reference_answer_for
 from are.runner.cache import ResponseCache
 from are.runner.llm import LLMClient, api_key_present
@@ -101,13 +102,21 @@ def deterministic_solve(s: Scenario) -> RunResult:
     steps: list[Step] = []
     sid = 0
     for step in s.reference_plan:
-        sid += 1
-        steps.append(Step(step_id=sid, type="tool_call", tool=step["tool"],
-                          args=step.get("args", {})))
-        res = world.call(step["tool"], step.get("args", {}), step_id=sid)
-        sid += 1
-        steps.append(Step(step_id=sid, type="tool_result", tool=step["tool"],
-                          ok=res.ok, data=res.data, error=res.error))
+        # The solver models an *ideal* operator, and an ideal operator retries one
+        # transient 503 rather than abandoning the task. Without this the gate discards
+        # every scenario carrying a transient fault as "impossible", which is false — they
+        # are solvable, just not on the first call. (It caught exactly that the day the
+        # baseline fault rate was raised; the plans were fine, the solver was too literal.)
+        for attempt in range(2):
+            sid += 1
+            steps.append(Step(step_id=sid, type="tool_call", tool=step["tool"],
+                              args=step.get("args", {})))
+            res = world.call(step["tool"], step.get("args", {}), step_id=sid)
+            sid += 1
+            steps.append(Step(step_id=sid, type="tool_result", tool=step["tool"],
+                              ok=res.ok, data=res.data, error=res.error))
+            if res.ok or not _is_transient(res.error):
+                break
     answer = reference_answer_for(s)
     sid += 1
     steps.append(Step(step_id=sid, type="final_answer", text=answer))

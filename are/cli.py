@@ -95,6 +95,41 @@ def cmd_gen(args) -> int:
     return 0
 
 
+# -------------------------------------------------------------- gate audit
+def cmd_gate_audit(args) -> int:
+    """Measure the feasibility gate's discriminative power (§3.3).
+
+    The discard rate alone cannot distinguish "gate works, everything is feasible" from
+    "gate does nothing" — both read 0%. This injects known defects and reports the catch
+    rate, so any claim about the gate is a measured number.
+    """
+    from are.gen.audit import audit
+
+    pool = load_scenarios(args.pool)
+    res = audit(pool, sample=args.sample, solver=args.solver)
+    _p("=" * 78)
+    _p(f" FEASIBILITY GATE AUDIT — solver={args.solver}, {res.n_sampled} scenarios sampled")
+    _p("=" * 78)
+    _p(f" baseline rejections on authored scenarios: {res.baseline_rejected}/{res.n_sampled}")
+    _p(" injected-defect catch rate:")
+    for name, d in res.per_mutation.items():
+        if not d["applicable"]:
+            _p(f"   {name:<36} n/a (not impossible for any sampled scenario)")
+            continue
+        _p(f"   {name:<36} {d['caught']:>3}/{d['applicable']:<3} "
+           f"({d['caught'] / d['applicable']:.0%})")
+    _p(f" overall: {res.overall_catch_rate:.0%}")
+    _p("")
+    _p(" read together: a 0% baseline with a high catch rate means the authored scenarios")
+    _p(" are feasible, not that the gate is inert.")
+    _p("=" * 78)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(res.as_dict(), indent=2), encoding="utf-8")
+    _p(f"wrote {out}")
+    return 0
+
+
 # ------------------------------------------------------------------ freeze
 def cmd_freeze(args) -> int:
     out = Path(args.out)
@@ -279,10 +314,21 @@ def print_scorecard(sc, meta: dict | None = None) -> None:
         for lvl, d in sorted(sc.pressure.items()):
             delta = "" if d["delta_vs_P0"] is None else f"   delta {d['delta_vs_P0']:+.1f}"
             _p(f"   {lvl}  {d['composite']:6.1f}   n={d['n_scenarios']:<4}{delta}")
-    if sc.flaky:
-        _p("")
-        _p(f" flaky (quarantined, §8.3): {len(sc.flaky)} — {', '.join(sc.flaky[:4])}"
-           f"{' …' if len(sc.flaky) > 4 else ''}")
+    _p("")
+    _p(" variance (two axes, never conflated — §8.3)")
+    if not sc.flaky_measurable:
+        _p("   flaky (repeats, decode noise)   NOT MEASURABLE in this run — see note below")
+    else:
+        _p(f"   flaky (repeats, decode noise)   {len(sc.flaky)} scenario(s)"
+           + (f" — {', '.join(sc.flaky[:3])}" if sc.flaky else ""))
+    if sc.paraphrase_sensitive:
+        _p(f"   paraphrase-sensitive groups     {len(sc.paraphrase_sensitive)} "
+           f"(template x pressure level)")
+        for g in sc.paraphrase_sensitive[:4]:
+            _p(f"      {g['template_id']:<26} {g['pressure_level']}  "
+               f"{g['passing']} pass / {g['failing']} fail of {g['n_variants']} variants")
+    else:
+        _p("   paraphrase-sensitive groups     0")
     for note in sc.notes:
         _p(f" note: {note}")
     _p("=" * 78)
@@ -466,6 +512,23 @@ def cmd_selftest(args) -> int:
         ok = False
         _p(f"   L1 assertion    FAIL — {exc}")
 
+    # L3 is asserted, not described. With a live key this is an online run, OS-level deny
+    # is necessarily off, and the proxy that would restore it does not exist — so this
+    # FAILS rather than skipping. A layer you cannot demonstrate is not a layer you have.
+    from are.runner.sandbox import l3_state
+    l3_desc, l3_enforced = l3_state()
+    if l3_enforced:
+        _p("   L3 assertion    PASS — OS-level egress deny in effect")
+    elif api_key_present():
+        ok = False
+        _p("   L3 assertion    FAIL — live API key present, so this is an online run: "
+           "OS-level deny is off and the unix-socket proxy is unimplemented. "
+           "Running L1+L2+L4 (§7.9 fallback ladder). Use `docker compose run offline` "
+           "for the OS-enforced configuration.")
+    else:
+        _p("   L3 assertion    PARTIAL — offline host run, process-level allowlist only; "
+           "`docker compose run offline` gives OS-level deny")
+
     _p("")
     _p("world isolation (§7.5: fresh World per run, no cross-run bleed)")
     from are.sim.entities import base_state
@@ -527,6 +590,15 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--solver", choices=["deterministic", "llm", "both"], default="deterministic")
     g.add_argument("--cache", choices=["off", "record", "replay"], default="off")
     g.set_defaults(func=cmd_gen)
+
+    ga = sub.add_parser("gate-audit",
+                        help="mutation-test the feasibility gate and report its catch rate")
+    ga.add_argument("--pool", default=str(DEFAULT_POOL))
+    ga.add_argument("--sample", type=int, default=40)
+    ga.add_argument("--solver", choices=["deterministic", "llm", "both"],
+                    default="deterministic")
+    ga.add_argument("--out", default="runs/gate_audit.json")
+    ga.set_defaults(func=cmd_gate_audit)
 
     f = sub.add_parser("freeze", help="freeze a stratified benchmark set (§3.4)")
     f.add_argument("--pool", default=str(DEFAULT_POOL))

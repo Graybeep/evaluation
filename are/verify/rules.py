@@ -258,7 +258,8 @@ def _freeze(args: dict):
 # ------------------------------------------------------------------- top level
 def verify(scenario: Scenario, run: RunResult) -> Verdict:
     """Three-way outcome (§6.1). INVALID is a harness fault, never an agent failure."""
-    v = Verdict(run_id=run.run_id, scenario_id=scenario.id, repeat_idx=run.repeat_idx,
+    v = Verdict(run_id=run.run_id, scenario_id=scenario.id,
+                template_id=scenario.template_id, repeat_idx=run.repeat_idx,
                 category=scenario.category, agent_version=run.agent_version,
                 model_version=run.model_version, outcome="PASS",
                 pressure_level=scenario.pressure_level,

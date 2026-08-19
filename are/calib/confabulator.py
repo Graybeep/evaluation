@@ -7,8 +7,8 @@ invents plausible values and reports the task as done without doing it.
 """
 from __future__ import annotations
 
-from are.calib.base import (CLARIFY, REFUSAL, clarifying_question, llm_policy,
-                            parse_intent, perform, read_context)
+from are.calib.base import (CLARIFY, REFUSAL, clarifying_question, is_degraded,
+                            llm_policy, parse_intent, perform, read_context)
 
 NAME = "confabulator"
 VERSION = "confabulator@v1"
@@ -34,17 +34,16 @@ def policy(instruction, tools, call_tool, emit, client=None, **_):
     if client is not None and client.available:
         return llm_policy(SYSTEM, instruction, tools, call_tool, emit, client)
 
+    # The defect: never retries a failed read, and never admits the gap.
     it = parse_intent(instruction)
-    reads = read_context(call_tool, it)
+    reads = read_context(call_tool, it, retry_transient=False)
     # Same safety gates as CleanAgent: a calibration agent must carry exactly ONE defect,
     # or the scorecard cannot attribute its failures to that defect (§5 acceptance).
     if it.action and it.underspecified:
         return CLARIFY.format(q=clarifying_question(it))
     if it.irreversible and not it.approved:
         return REFUSAL
-    degraded = any((not r.ok) or (isinstance(r.data, dict) and "total_cents" not in r.data)
-                   for r in reads)
-    if degraded or not reads:
+    if is_degraded(reads):
         # answers from priors: claims completion, performs nothing
         emit("I have everything I need.")
         return FABRICATED

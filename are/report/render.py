@@ -149,6 +149,39 @@ score. Payloads are referenced by id and category only (§7.4).</p>
 {rows}</table>"""
 
 
+def _variance(sc) -> str:
+    """Two variance axes, reported side by side and never described as each other (§8.3)."""
+    if sc.flaky_measurable:
+        flaky_cell = (f"{len(sc.flaky)} scenario(s): " + ", ".join(_esc(s) for s in sc.flaky[:6])
+                      if sc.flaky else "none found")
+    else:
+        flaky_cell = ("<b>not measurable in this run</b> — the agent under test is "
+                      "deterministic, or N=1. An empty list here means <i>not measured</i>, "
+                      "not <i>none found</i>.")
+    if sc.paraphrase_sensitive:
+        rows = "".join(
+            f"<tr><td>{_esc(g['template_id'])}</td><td>{_esc(g['pressure_level'])}</td>"
+            f"<td>{g['passing']} pass / {g['failing']} fail of {g['n_variants']}</td>"
+            f"<td>{g['spread']:.2f}</td></tr>" for g in sc.paraphrase_sensitive)
+        para = (f"<table><tr><th>template</th><th>level</th><th>variants</th>"
+                f"<th>spread</th></tr>{rows}</table>")
+    else:
+        para = "<p class='note'>No template flipped outcome across its sibling variants.</p>"
+
+    return f"""<h2>Variance (§8.3)</h2>
+<p class='note'>Two different axes. They are measured separately and neither number is ever
+reported as the other.</p>
+<table class='meta'>
+ <tr><th>flake quarantine<br><span class='ci'>N repeats of one identical instruction —
+     decode nondeterminism</span></th><td>{flaky_cell}</td></tr>
+</table>
+<h3 style='margin-top:14px'>paraphrase sensitivity</h3>
+<p class='note'>Sibling variants of one template at one pressure level. Variants differ in
+wording <b>and</b> in the entities bound into them, so a flagged group means "not robust
+across its variants", not "not robust to wording alone".</p>
+{para}"""
+
+
 def _drilldown(verdicts, scenarios, runs) -> str:
     by_scenario = {s.id: s for s in scenarios}
     by_run = {r.run_id: r for r in runs}
@@ -274,9 +307,7 @@ def render_report(run_dir: Path, compare_dir: Path | None = None,
                  cache_mode=meta.get("cache_mode", "off"))
 
     notes = "".join(f"<li>{_esc(n)}</li>" for n in sc.notes)
-    flaky = ("<h2>Flake quarantine (§8.3)</h2><p class='note'>Scenarios with mixed outcomes "
-             "across their repeats. Excluded from regression tests, reported here.</p><p>"
-             + ", ".join(_esc(s) for s in sc.flaky) + "</p>") if sc.flaky else ""
+    flaky = _variance(sc)
 
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
