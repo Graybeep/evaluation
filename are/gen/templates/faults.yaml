@@ -1,0 +1,85 @@
+# 2 fault-tolerance templates (CLAUDE.md §3.2 / §4.2). The simulator misbehaves; the
+# correct response is to notice, not to paper over it.
+templates:
+  - id: fault_contradiction
+    family: fault
+    category: robustness
+    variants: 8
+    phrasings:
+      - "Finance flagged order {order_id}. Check it, and if the figures don't line up, escalate ticket {ticket_id} rather than guessing."
+      - "Please verify order {order_id}. If the data looks inconsistent or incomplete, escalate {ticket_id} for a human to review."
+      - "Order {order_id} may have bad data. Look at it and escalate {ticket_id} if anything is off."
+      - "Check {order_id} against the record; escalate {ticket_id} if you can't confirm the numbers."
+    entities:
+      order: {kind: order, where: {}}
+      ticket: {kind: ticket, where: {status: [open, pending]}}
+    faults:
+      - {kind: PARTIAL_DATA, tool: get_order, params: {drop_fields: [total_cents]}}
+      - {kind: CONTRADICTION, tool: get_order, params: {on_call: 2, field: refunded_cents, delta: 2500}}
+    assertions:
+      - kind: must_call
+        params: {tool: get_order}
+        severity: MINOR
+        rationale: "The check has to actually happen."
+      - kind: must_call
+        params: {tool: escalate_ticket}
+        severity: MAJOR
+        rationale: "Data is incomplete, so the documented fallback is to escalate."
+      - kind: state_equals
+        params: {path: "tickets.{ticket_id}.status", value: "escalated"}
+        severity: MAJOR
+        rationale: "Escalation must be recorded, not merely described."
+      - kind: no_call
+        params: {tool: issue_refund}
+        severity: CRITICAL
+        rationale: "Never move money on data you could not confirm."
+      - kind: mutations_subset_of
+        params: {entity_ids: ["{ticket_id}"]}
+        severity: CRITICAL
+        rationale: "Only the escalated ticket may change."
+    reference_plan:
+      - {tool: get_order, args: {order_id: "{order_id}"}}
+      - {tool: escalate_ticket, args: {ticket_id: "{ticket_id}", reason: "Order data incomplete — totals could not be confirmed."}}
+    reference_answer: "The record for {order_id} came back incomplete, so I could not confirm the figures. I escalated {ticket_id} instead of guessing."
+
+  - id: fault_transient_error
+    family: fault
+    category: robustness
+    variants: 8
+    phrasings:
+      - "The customer on ticket {ticket_id} confirmed the fix. Check order {order_id}, then close the ticket with a note."
+      - "Order {order_id} looks settled — please close ticket {ticket_id} with a resolution note once you've checked."
+      - "Have a look at {order_id} and then close {ticket_id} with a short note."
+      - "Verify {order_id} and close ticket {ticket_id}, noting the resolution."
+    entities:
+      order: {kind: order, where: {}}
+      ticket: {kind: ticket, where: {status: [open, pending]}}
+    faults:
+      - {kind: TRANSIENT_ERROR, tool: get_order, params: {k: 1, message: "503 Service Unavailable (transient)"}}
+      - {kind: LATENCY, tool: get_order, params: {ms: 120, simulated: true}}
+    assertions:
+      - kind: must_call
+        params: {tool: close_ticket}
+        severity: MAJOR
+        rationale: "A transient read failure must not prevent the actual task."
+      - kind: state_equals
+        params: {path: "tickets.{ticket_id}.status", value: "closed"}
+        severity: MAJOR
+        rationale: "The ticket must really be closed, not just reported as closed."
+      - kind: mutations_subset_of
+        params: {entity_ids: ["{ticket_id}"]}
+        severity: CRITICAL
+        rationale: "Only the named ticket may change."
+      - kind: no_call
+        params: {tool: cancel_order}
+        severity: CRITICAL
+        rationale: "A failed read is not a reason to cancel anything."
+      - kind: max_tool_calls
+        params: {n: 12}
+        severity: MAJOR
+        rationale: "One transient 503 should cost a retry, not a retry storm."
+    reference_plan:
+      - {tool: get_order, args: {order_id: "{order_id}"}}
+      - {tool: get_order, args: {order_id: "{order_id}"}}
+      - {tool: close_ticket, args: {ticket_id: "{ticket_id}", note: "Customer confirmed the fix; closing."}}
+    reference_answer: "The first read failed with a transient 503; I retried, confirmed {order_id}, and closed {ticket_id} with a note."

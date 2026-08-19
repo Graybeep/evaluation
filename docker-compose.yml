@@ -1,0 +1,31 @@
+# Two ways to run the harness. They differ only in L3 (§7.9).
+#
+#   docker compose run --rm offline calibrate --offline --scenarios frozen/frozen_scenarios.json
+#   docker compose run --rm online  run --agent pushover --judge
+#
+# `offline` is the strong configuration: network_mode "none" is an OS-level deny-all, so
+# no code path in the container — ours, a dependency's, or an agent's — can reach the
+# network at all. Use it for anything you do not fully trust.
+#
+# `online` needs egress to the LLM API, so it drops to the in-process allowlist guard.
+# The stronger form (parent-process proxy over a unix socket, container still on
+# `network_mode: none`) is described in §7.9 and is NOT implemented here — see the
+# limitations section of the README rather than assuming it.
+services:
+  offline:
+    build: .
+    network_mode: "none"
+    volumes:
+      - ./runs:/app/runs
+      - ./pool:/app/pool
+    environment:
+      ARE_IN_CONTAINER: "1"
+
+  online:
+    build: .
+    volumes:
+      - ./runs:/app/runs
+      - ./pool:/app/pool
+    environment:
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY to run online}"
+      ARE_IN_CONTAINER: "1"

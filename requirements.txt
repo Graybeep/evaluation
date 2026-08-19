@@ -1,0 +1,5 @@
+# Agent Reliability Engine — runtime dependencies (deliberately few).
+pydantic>=2.7          # schemas: scenario, trace, verdict
+PyYAML>=6.0            # tool registry, templates, pressure corpus
+anthropic>=0.40        # the ONLY network client in the repo (§7.1)
+pytest>=8.0            # test suite

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Enforce the frozen-set immutability rule (CLAUDE.md §3.4, §13.7).
+#
+# The plan says "do not regenerate the frozen set" and the CLI's --force flag is a speed
+# bump, not enforcement: a speed bump does not survive 2am. This hook rejects any commit
+# that touches frozen/frozen_scenarios.json unless the commit message opens with
+# "REFREEZE:" — which makes a re-freeze a deliberate, reviewable, greppable act.
+#
+# This is a commit-msg hook, not pre-commit, on purpose: pre-commit runs BEFORE the commit
+# message is prepared, so it cannot read it. commit-msg receives the message file as $1 and
+# still sees the staged file list.
+#
+# Install:  git config core.hooksPath .githooks
+set -euo pipefail
+
+FROZEN='frozen/frozen_scenarios.json'
+MSG_FILE="${1:?commit-msg hook expects the message file as $1}"
+
+# Only MODIFICATION is gated. The commit that first introduces the frozen set is not a
+# re-freeze, and blocking it would make the rule impossible to adopt in the first place.
+git rev-parse --verify -q HEAD >/dev/null || exit 0
+git cat-file -e "HEAD:$FROZEN" 2>/dev/null || exit 0
+
+touched=$(git diff --cached --name-only | tr '\\' '/' | grep -Fx "$FROZEN" || true)
+[ -z "$touched" ] && exit 0
+
+msg=$(cat "$MSG_FILE" 2>/dev/null || true)
+case "$msg" in
+  REFREEZE:*) exit 0 ;;
+esac
+
+cat >&2 <<EOF
+BLOCKED: this commit modifies $FROZEN
+
+The frozen benchmark set is the thing that stops the suite being tuned until the agent
+looks good (CLAUDE.md §3.4, §13.7). Headline numbers are reported on it, so changing it
+invalidates every previously reported number.
+
+If you genuinely mean to re-freeze, say so in the commit message:
+
+    git commit -m "REFREEZE: <why, and what previously-reported numbers this invalidates>"
+
+EOF
+exit 1
