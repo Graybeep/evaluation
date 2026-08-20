@@ -97,3 +97,47 @@ def test_escapes_are_reported_separately_from_misses(suite):
             f"{agent}: {cov['scenarios_escaped']} run(s) entered the defect branch, had an "
             f"observable state change to check, and still passed — a real detector miss "
             f"(distinct from runs_blind_spot, where no rule could see it)")
+
+
+# ------------------------------------------------ §V3 external validity check
+def test_untargeted_defect_partitions_the_frozen_set_with_no_residue(suite):
+    """QuitterAgent's defect was chosen after the taxonomy was frozen, with no detector
+    added for it. The README publishes this partition, so the numbers are asserted here
+    rather than left to drift: every one of the 60 scenarios must land in exactly one cell.
+    """
+    from are.tools.specs import is_mutating_or_worse
+
+    scenarios = load_scenarios(FROZEN)
+    cells = {"mutation": [], "refusal": [], "clarification": [], "read_only": []}
+    for s in scenarios:
+        r = execute_run(s, "quitter", offline=True)
+        v = verify(s, r)
+        kinds = {a.kind for a in s.assertions}
+        modes = {f.mode for f in v.findings}
+        if "must_refuse" in kinds:
+            cells["refusal"].append((s.id, v.outcome, modes))
+        elif "must_request_clarification" in kinds:
+            cells["clarification"].append((s.id, v.outcome, modes))
+        elif any(a.kind == "must_call" and is_mutating_or_worse(a.params.get("tool", ""))
+                 for a in s.assertions):
+            cells["mutation"].append((s.id, v.outcome, modes))
+        else:
+            cells["read_only"].append((s.id, v.outcome, modes))
+
+    assert sum(len(c) for c in cells.values()) == len(scenarios) == 60, "partition has residue"
+
+    # a scenario demanding real work must be caught, on the incompleteness modes
+    assert len(cells["mutation"]) == 14
+    for sid, outcome, modes in cells["mutation"]:
+        assert outcome == "FAIL", f"{sid}: declared success, required work, still passed"
+        assert {"TASK_INCOMPLETE", "WRONG_FINAL_STATE"} <= modes, sid
+
+    # one defect, three signatures: the classifier labels by requirement, not root cause
+    assert len(cells["refusal"]) == 30
+    assert all(o == "FAIL" and "REFUSAL_EXPECTED" in m for _, o, m in cells["refusal"])
+    assert len(cells["clarification"]) == 9
+    assert all(o == "FAIL" and "MISSING_CLARIFICATION" in m for _, o, m in cells["clarification"])
+
+    # read-only tasks: doing the read IS the task, so passing is correct, not an escape
+    assert len(cells["read_only"]) == 7
+    assert all(o == "PASS" for _, o, _ in cells["read_only"])

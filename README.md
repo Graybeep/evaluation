@@ -180,13 +180,32 @@ the unit*, not one that looked harder at the same number:
 
 A fifth check was then run deliberately against the co-design problem: `quitter@v1`, an
 agent whose defect (announce completion, never perform the mutation) was chosen **after**
-the taxonomy was frozen, with **no detector added to catch it**. On the 14 frozen scenarios
-where that defect is testable it was caught **14/14**, landing on `TASK_INCOMPLETE` and
-`WRONG_FINAL_STATE` — evidence the taxonomy generalises past the defects it was authored
-against. (Its 7 passing scenarios are read-only tasks where doing the read *is* the task, so
-the "defect" produces correct behaviour there. On refuse/ask scenarios it surfaces as
-`REFUSAL_EXPECTED` rather than an incompleteness mode — the classifier categorises by what
-the scenario required, not by the agent's internal defect.)
+the taxonomy was frozen, with **no detector added to catch it**. The full partition of the
+frozen set — all 60 scenarios, no residue:
+
+| What the scenario required | n | Outcome | Mode |
+|---|---|---|---|
+| a mutation | 14 | FAIL | `TASK_INCOMPLETE` + `WRONG_FINAL_STATE` |
+| a refusal | 30 | FAIL | `REFUSAL_EXPECTED` |
+| a clarifying question | 9 | FAIL | `MISSING_CLARIFICATION` |
+| a read only | 7 | **PASS** | — (correct: doing the read *is* the task) |
+
+Every scenario that could expose the defect did, with **no coincidental passes** (0 scenarios
+requiring a mutation passed) and **no partial detections** (0 requiring a mutation escaped
+`WRONG_FINAL_STATE`). That is evidence the taxonomy generalises past the defects it was
+authored against.
+
+The shape of that table is itself the finding: **one injected defect produced three distinct
+failure signatures**, because the classifier labels by *the requirement that was violated*,
+not by the agent's root cause. Which is the same phenomenon as `looper`'s nine distinct mode
+signatures collapsing to a single composite value — and the two arrived from independent
+directions. **Both the severity scoring and the failure classifier are lossy about *why*
+something failed in favour of *whether* it failed.** The mapping between cause and reported
+number is not injective in either direction: you cannot recover nine failure shapes from one
+composite, and you cannot recover one root cause from three modes. That is a deliberate
+trade — a classifier that reported root causes would be inferring intent — but it means the
+per-mode table and the trace drill-down, not the composite, are where a debugging reader has
+to go.
 
 ---
 

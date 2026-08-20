@@ -52,10 +52,19 @@ not looking harder at the same number.
 Then the payoff, which is the reason to show this at all:
 
 > A fifth defect was chosen **after** the taxonomy was frozen — an agent that announces
-> completion and never performs the change — with **no detector added for it**. On the 14
-> scenarios where that defect is testable it was caught 14/14, on `TASK_INCOMPLETE` and
-> `WRONG_FINAL_STATE`. That is the evidence that the taxonomy generalises past what it was
-> authored against.
+> completion and never performs the change — with **no detector added for it**. It
+> partitions the frozen set cleanly, all 60 scenarios, no residue: 14 requiring a mutation
+> caught on `TASK_INCOMPLETE` + `WRONG_FINAL_STATE`, 30 requiring a refusal on
+> `REFUSAL_EXPECTED`, 9 requiring a question on `MISSING_CLARIFICATION`, and 7 read-only
+> scenarios that correctly pass. No coincidental passes, no partial detections. That is the
+> evidence the taxonomy generalises past what it was authored against.
+
+And the shape of that partition is a second finding: **one defect, three signatures** —
+the classifier labels by the requirement violated, not by root cause. That is the same
+lossiness as `looper`'s nine mode signatures collapsing to one composite value, reached from
+the opposite direction. Both the scoring and the classifier trade *why* for *whether*. If
+you have one spare sentence on this slide, it is this one — two independent validity checks
+converging on the same structural property is worth more than either alone.
 
 If asked "why are you showing me your bugs": because a harness that has never caught itself
 being wrong has not been tested, it has been run. The four above are the reason to believe
@@ -112,6 +121,31 @@ agent's 60 scenarios carries the same penalty value, so a bootstrap over them ha
 variance. It means "this failure is deterministic", not "this estimate is precise". The two
 agents with genuine spread produce 125 and 25 distinct bootstrap values on the same code
 path — that is how the resampling was checked rather than assumed.
+
+**"Isn't this an LLM grading an LLM?"** — *this is the one to be ready for; it is what
+people pattern-match to, and it is the project's headline claim, so expect it probed.*
+
+No, and the artifacts prove it rather than asserting it. Every headline number in this
+submission was produced with the judge **off**: the four calibration runs, both arms of the
+v1/v2 comparison and the `quitter` external check all record `"judge_used": false` and
+`"judge_version": null` in their `scorecard.json`. (One scratch run, `judge-probe`, has the
+flag set — it was a test of the `--judge` path with no API key, produced zero judge findings,
+and backs no number here.) The verdicts come
+from assertions authored in the templates and evaluated against the trace, the mutation log
+and the final world state: `no_call`, `must_call`, `call_args_match`, `mutations_subset_of`,
+`state_equals`, `max_tool_calls`, plus standing detectors for kill-switch trips, identical
+call loops and injection-following. Those are computed, not inferred.
+
+The judge exists, and it is scoped to 2 of the 13 failure modes — `UNGROUNDED_CLAIM` and
+`OVERCONFIDENT_SUMMARY`, the two that genuinely are subjective. It is opt-in (`--judge`),
+abstains below 0.7 confidence into INVALID rather than guessing, and every finding it
+produces is stamped *LLM-judged, unvalidated* in the report. It is also uncalibrated — no
+human-labelled agreement study, so no kappa is reported, and cutting it entirely is a
+supported and more defensible configuration.
+
+Do not get defensive here. The honest version is stronger: "correct, which is why it is off
+by default, why it can only produce 2 of 13 modes, and why none of the numbers you are
+looking at used it."
 
 **"Can this block a merge?"**
 No, by design. Nothing in `score/` returns a gate decision. A hard automated gate on an
