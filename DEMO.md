@@ -33,7 +33,7 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
-## Slide 2 — "Eight times this harness measured the wrong thing"
+## Slide 2 — "Nine times this harness measured the wrong thing"
 
 Right after the fingerprint table. This is the strongest material in the deck, and it is
 strongest told as a pattern rather than as four anecdotes.
@@ -52,6 +52,7 @@ not looking harder at the same number.
 | 6 | "bit-identical replay" | a replay miss fell through to a **live API call**, blending recorded and fresh responses | testing the replay guarantee, also never run |
 | 7 | "ACCEPTANCE: FAIL — fix the platform" | rendered twice from runs its own scorecards had marked `reportable=False` (12.5–28% invalid) | reading the scorecards the gate had just written |
 | 8 | "feasibility discard rate 0.0%" | 0.0 returned when **nothing was evaluated** — 25/25 provider faults printed as a clean rate | running `--solver llm` for real |
+| 9 | "JUDGE-ATK-01 PASS" | the injection test was **structurally incapable of failing** — its flip criterion needed a control finding it never had | running the judge-attack corpus for the first time |
 
 Then the payoff, which is the reason to show this at all:
 
@@ -70,11 +71,11 @@ the opposite direction. Both the scoring and the classifier trade *why* for *whe
 you have one spare sentence on this slide, it is this one — two independent validity checks
 converging on the same structural property is worth more than either alone.
 
-**The line to lead with on this slide:** #5, #6, #7 and #8 are the same bug four times —
+**The line to lead with on this slide:** #5, #6, #7, #8 and #9 are the same bug five times —
 a guard returning a confident value instead of refusing to answer. Malformed tier → "not
 irreversible". Replay miss → live API call. Unreportable data → PASS/FAIL. Nothing
-evaluated → 0%. For an evaluation harness the dangerous default is not a crash, it is a
-plausible number. Every one of these looked like health.
+evaluated → 0%. Undiscriminating test → PASS. For an evaluation harness the dangerous
+default is not a crash, it is a plausible number. Every one of these looked like health.
 
 #5 and #6 are the cheap ones, and the line to say out loud: a sweep of every
 stated-but-untested invariant found **five claims, two of them false**. The three that held

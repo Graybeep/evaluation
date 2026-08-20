@@ -212,6 +212,22 @@ def _limit_overrides(args) -> dict | None:
     return over or None
 
 
+# A provider fault kills the whole run, not just one turn: a 502 on turn 3 leaves an
+# INVALID with a partial trace. Re-running the scenario is legitimate in a way that
+# relaxing the §6.1 ceiling never would be — provider instability is orthogonal to agent
+# behaviour, exactly like re-running a flaky CI job. It is bounded and counted, and it
+# NEVER applies to an agent failure or a genuine harness bug, only to 5xx/rate-limit
+# faults from the endpoint.
+PROVIDER_FAULT_MARKERS = ("InternalServerError", "APIConnectionError", "APITimeoutError",
+                          "502", "503", "504", "overloaded", "rate_limited")
+RUN_RETRY_DEFAULT = 2
+
+
+def _is_provider_fault_run(res: RunResult) -> bool:
+    err = res.harness_error or ""
+    return bool(err) and any(m in err for m in PROVIDER_FAULT_MARKERS)
+
+
 def _one_run(scenario: Scenario, agent: str, rep: int, args) -> RunResult:
     if args.sandbox:
         return run_sandboxed(scenario, agent, repeat_idx=rep, cache_mode=args.cache,
@@ -221,17 +237,36 @@ def _one_run(scenario: Scenario, agent: str, rep: int, args) -> RunResult:
                        offline=args.offline, limit_overrides=_limit_overrides(args))
 
 
+def _one_run_with_provider_retry(scenario: Scenario, agent: str, rep: int, args):
+    """Returns (result, run_retries_used). Retries only provider faults."""
+    budget = getattr(args, "run_retries", RUN_RETRY_DEFAULT)
+    used = 0
+    res = _one_run(scenario, agent, rep, args)
+    while used < budget and _is_provider_fault_run(res):
+        used += 1
+        time.sleep(3.0 * used)
+        res = _one_run(scenario, agent, rep, args)
+    return res, used
+
+
 def execute_suite(scenarios: list[Scenario], agent: str, args) -> tuple[list[RunResult], list[Verdict]]:
     jobs = [(s, r) for s in scenarios for r in range(args.n)]
     results: list[RunResult] = []
+    run_retries = 0
     if args.sandbox and args.jobs > 1:
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            results = list(pool.map(lambda j: _one_run(j[0], agent, j[1], args), jobs))
+            pairs = list(pool.map(
+                lambda j: _one_run_with_provider_retry(j[0], agent, j[1], args), jobs))
+        results = [r for r, _ in pairs]
+        run_retries = sum(n for _, n in pairs)
     else:
         for i, (s, r) in enumerate(jobs, 1):
-            results.append(_one_run(s, agent, r, args))
+            res, used = _one_run_with_provider_retry(s, agent, r, args)
+            results.append(res)
+            run_retries += used
             if args.progress and i % 25 == 0:
                 _p(f"   ...{i}/{len(jobs)} runs")
+    execute_suite.last_run_retries = run_retries
 
     by_id = {s.id: s for s in scenarios}
     verdicts: list[Verdict] = []
@@ -737,6 +772,9 @@ def cmd_selftest(args) -> int:
     for row in selftest_injection(cache_mode=args.cache):
         _p(f"   {row['payload_id']:<14} {row['result']:<20} {row.get('detail', '')}")
         ok &= not row["result"].startswith("FAIL")
+        if row["result"] == "INCONCLUSIVE":
+            _p("      ^ the judge-attack test could not discriminate; treat §7.2 as "
+               "UNVERIFIED rather than passing")
 
     _p("")
     _p("credentials (§7.1)")
@@ -778,6 +816,9 @@ def build_parser() -> argparse.ArgumentParser:
                        help="hard per-run token cap, overriding LIMITS (use for smoke runs)")
         p.add_argument("--wall-clock", type=float, default=0,
                        help="hard per-run wall-clock cap in seconds, overriding LIMITS")
+        p.add_argument("--run-retries", type=int, default=RUN_RETRY_DEFAULT,
+                       help="re-run a scenario whose run died to a PROVIDER fault "
+                            "(5xx/timeout). Never applies to agent failures. Counted.")
 
     g = sub.add_parser("gen", help="expand templates -> feasibility gate -> scenario pool")
     g.add_argument("--out", default=str(DEFAULT_POOL))

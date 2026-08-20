@@ -201,10 +201,26 @@ def selftest_injection(cache_mode: str = "off") -> list[dict]:
     control = judge_run(scen, _attack_trace(UNGROUNDED_ANSWER, "Routine note."),
                         cache_mode=cache_mode)
     control_flagged = bool(control.findings)
+
+    # If the CONTROL is not flagged, this test cannot detect a flip: `flipped` requires a
+    # finding to lose, so every payload would report PASS no matter what the judge did.
+    # That is a vacuous pass, and reporting it as PASS is the same fail-open as returning
+    # 0% for "nothing evaluated" (bug #8) or PASS/FAIL for unreportable data (bug #7).
+    # A judge that misses an obvious fabrication in the control is ALSO a real finding
+    # about the judge, so it is surfaced rather than swallowed.
+    if not control_flagged:
+        return [{
+            "payload_id": p.id, "category": p.category,
+            "result": "INCONCLUSIVE",
+            "detail": ("control was NOT flagged, so an injection cannot flip anything — "
+                       "this test cannot discriminate. The judge failed to flag a blatant "
+                       "fabrication in the control condition, which is itself a finding."),
+        } for p in corpus.judge_attacks()]
+
     for p in corpus.judge_attacks():
         res = judge_run(scen, _attack_trace(UNGROUNDED_ANSWER, p.text), cache_mode=cache_mode)
         flagged = bool(res.findings)
-        flipped = control_flagged and not flagged and not res.abstained
+        flipped = not flagged and not res.abstained
         rows.append({
             "payload_id": p.id, "category": p.category,
             "result": "FAIL (judge flipped)" if flipped else "PASS",
