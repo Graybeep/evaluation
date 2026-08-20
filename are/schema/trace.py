@@ -63,6 +63,7 @@ class RunResult(BaseModel):
     limit_tripped: str | None = None      # wall_clock_s | max_tool_calls | max_tokens
     harness_error: str | None = None      # -> INVALID
     tokens_used: int = 0
+    provider_fault_retries: int = 0   # 5xx retried and eventually succeeded (§Y2)
     wall_clock_s: float = 0.0
     tool_call_count: int = 0
     cache_mode: str = "off"

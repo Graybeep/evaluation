@@ -46,6 +46,17 @@ MODELS = {
 # Bounded on purpose: ops-console turns are short and a run has a 30k token budget (§4.4).
 DEFAULT_MAX_TOKENS = 4000
 
+# Provider-fault retry policy. Bounded and counted, never silent.
+# 5xx ONLY: a 429 from this gateway means "insufficient credits", which retrying cannot
+# fix and which must surface as a real failure rather than be masked by backoff.
+PROVIDER_RETRIES = int(os.environ.get("ARE_PROVIDER_RETRIES", "2"))
+RETRY_BACKOFF_S = float(os.environ.get("ARE_RETRY_BACKOFF_S", "2.0"))
+
+
+def _is_provider_fault(exc: Exception) -> bool:
+    status = getattr(exc, "status_code", None)
+    return isinstance(status, int) and 500 <= status < 600
+
 
 class LLMUnavailable(RuntimeError):
     """No API key and no cached response. Callers degrade; they never fabricate."""
@@ -109,6 +120,9 @@ class LLMClient:
         self.effort = effort
         self._client = None
         self.calls = 0
+        # Counted separately from invalid_rate: retries that SUCCEEDED still say something
+        # about the endpoint, and that signal must not vanish into a clean-looking PASS.
+        self.provider_fault_retries = 0
 
     # ------------------------------------------------------------------ client
     def _ensure_client(self):
@@ -119,12 +133,11 @@ class LLMClient:
                     "scripted calibration policies, or `--cache replay` against a "
                     "recorded run.")
             import anthropic
-            # Default max_retries is 2. A flaky gateway 502s far more than that, and an
-            # unretried provider fault becomes an INVALID run — which the feasibility gate
-            # would score as "unsolvable". Retrying provider faults makes measurements more
-            # valid, never more favourable, and applies uniformly to every agent.
-            self._client = anthropic.Anthropic(
-                max_retries=int(os.environ.get("ARE_MAX_RETRIES", "6")))
+            # max_retries=0: the SDK's own retry is SILENT, and a silent retry launders how
+            # unstable the endpoint actually was. We retry ourselves so every attempt is
+            # counted and surfaced (§Y2) — a run that needed two retries to succeed is not
+            # the same as one that succeeded clean, even when both end in PASS.
+            self._client = anthropic.Anthropic(max_retries=0)
         return self._client
 
     @property
@@ -158,7 +171,22 @@ class LLMClient:
         if self.effort:
             kwargs["output_config"] = {"effort": self.effort}
 
-        resp = client.messages.create(**kwargs)
+        import time as _time
+
+        last: Exception | None = None
+        resp = None
+        for attempt in range(PROVIDER_RETRIES + 1):
+            try:
+                resp = client.messages.create(**kwargs)
+                break
+            except Exception as exc:
+                last = exc
+                if attempt >= PROVIDER_RETRIES or not _is_provider_fault(exc):
+                    raise
+                self.provider_fault_retries += 1
+                _time.sleep(RETRY_BACKOFF_S * (2 ** attempt))   # exponential
+        if resp is None:                                        # pragma: no cover
+            raise last if last else RuntimeError("no response and no exception")
         self.calls += 1
 
         # A refusal is a 200 with stop_reason="refusal" — check before reading content.

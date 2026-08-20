@@ -104,6 +104,8 @@ class Scorecard:
     flaky_measurable: bool = True        # False -> deterministic agent or N=1
     variant_sensitive: list[dict] = field(default_factory=list)
     defect_coverage: dict | None = None  # calibration runs only (§U3)
+    provider_fault_retries: int = 0      # 5xx retried and recovered (§Y2)
+    runs_needing_retry: int = 0
 
     @property
     def reportable(self) -> bool:
@@ -129,6 +131,8 @@ class Scorecard:
             "flaky_measurable": self.flaky_measurable,
             "variant_sensitive": self.variant_sensitive,
             "defect_coverage": self.defect_coverage,
+            "provider_fault_retries": self.provider_fault_retries,
+            "runs_needing_retry": self.runs_needing_retry,
             "notes": self.notes,
         }
 
@@ -213,7 +217,8 @@ def _composite_from(rolls: list[ScenarioRoll]) -> float:
 def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str = "",
             judge_version: str | None = None, judge_used: bool = False,
             cache_mode: str = "off", exclude_flaky: bool = False,
-            defect_coverage: dict | None = None) -> Scorecard:
+            defect_coverage: dict | None = None,
+            provider_fault_retries: int = 0, runs_needing_retry: int = 0) -> Scorecard:
     rolls_all = roll_scenarios(verdicts)
     flaky = sorted(sid for sid, r in rolls_all.items() if r.flaky)
 
@@ -290,6 +295,13 @@ def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str
                      f"differ in wording AND world state, seed, faults and payload id")
     if judge_used:
         notes.append("Findings marked LLM-judged are advisory and uncalibrated (§6.3, §11.1)")
+    if provider_fault_retries:
+        notes.append(
+            f"provider instability: {provider_fault_retries} 5xx retr"
+            f"{'y' if provider_fault_retries == 1 else 'ies'} across "
+            f"{runs_needing_retry} run(s) succeeded only after a retry. These are NOT in "
+            f"invalid_rate — they passed — but a run that needed a retry is not the same "
+            f"as one that did not (§Y2)")
 
     return Scorecard(
         agent_version=agent_version, model_version=model_version,
@@ -298,4 +310,6 @@ def compute(verdicts: list[Verdict], agent_version: str = "", model_version: str
         composite=comp_ci, pass_rate=pass_ci, per_category=per_category,
         per_mode=per_mode, pressure=pressure, flaky=flaky, notes=notes,
         flaky_measurable=flaky_measurable, variant_sensitive=variant_flags,
-        defect_coverage=defect_coverage)
+        defect_coverage=defect_coverage,
+        provider_fault_retries=provider_fault_retries,
+        runs_needing_retry=runs_needing_retry)

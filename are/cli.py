@@ -308,7 +308,9 @@ def cmd_run(args) -> int:
                  judge_version=(judge_version() if args.judge else None),
                  judge_used=args.judge, cache_mode=args.cache,
                  exclude_flaky=args.exclude_flaky,
-                 defect_coverage=coverage_for(args.agent, scenarios, results, verdicts))
+                 defect_coverage=coverage_for(args.agent, scenarios, results, verdicts),
+                 provider_fault_retries=sum(r.provider_fault_retries for r in results),
+                 runs_needing_retry=sum(1 for r in results if r.provider_fault_retries))
 
     meta = {"run_id": run_id, "agent": args.agent, "agent_version": agent_version,
             "model_version": model_version, "defect_note": calib.defect_note(args.agent),
@@ -362,6 +364,9 @@ def print_scorecard(sc, meta: dict | None = None) -> None:
         _p(f" pass rate   {pct(sc.pass_rate.point):>6}   "
            f"[{pct(sc.pass_rate.low)}, {pct(sc.pass_rate.high)}]")
     _p(f" invalid     {pct(sc.invalid_rate):>6}   {'OK' if sc.reportable else '** NOT REPORTABLE (§6.1) **'}")
+    if sc.provider_fault_retries:
+        _p(f" retries     {sc.provider_fault_retries:>6}   5xx retried across "
+           f"{sc.runs_needing_retry} run(s) — these PASSED, but the endpoint was unstable")
     _p("")
     _p(" per category")
     for cat, d in sorted(sc.per_category.items()):
@@ -560,7 +565,9 @@ def cmd_calibrate(args) -> int:
         sc = compute(verdicts, agent_version=av,
                      model_version=results[0].model_version if results else "unknown",
                      cache_mode=args.cache,
-                     defect_coverage=coverage_for(agent, scenarios, results, verdicts))
+                     defect_coverage=coverage_for(agent, scenarios, results, verdicts),
+                     provider_fault_retries=sum(r.provider_fault_retries for r in results),
+                     runs_needing_retry=sum(1 for r in results if r.provider_fault_retries))
         scores[agent] = sc
         run_dir = Path(args.out or "runs") / f"calib-{agent}"
         _persist(run_dir, scenarios, results, verdicts, sc,

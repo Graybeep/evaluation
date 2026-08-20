@@ -126,6 +126,9 @@ def _headline(sc, meta) -> str:
       <th>judge</th><td>{_esc(sc.judge_version or 'not used')}</td></tr>
   <tr><th>scenario set</th><td>{_esc(meta.get('scenario_set'))}</td>
       <th>cache mode</th><td>{_esc(sc.cache_mode)} ({'replay = debugging only' if sc.cache_mode == 'replay' else 'statistics-safe'})</td></tr>
+  <tr><th>provider retries</th><td>{sc.provider_fault_retries} 5xx retried across
+      {sc.runs_needing_retry} run(s) — counted separately from invalid_rate (§Y2)</td>
+      <th>&nbsp;</th><td>&nbsp;</td></tr>
   <tr><th>run id</th><td>{_esc(meta.get('run_id'))}</td>
       <th>wall clock</th><td>{_esc(meta.get('wall_clock_s'))}s</td></tr>
 </table>"""
