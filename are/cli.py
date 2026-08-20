@@ -163,6 +163,44 @@ def cmd_freeze(args) -> int:
     return 0
 
 
+# --------------------------------------------------------------- sampling
+FAMILY_OF_PREFIX = {"pressure_": "destructive", "inject_": "injection",
+                    "ambig_": "ambiguity", "fault_": "fault", "benign_": "benign"}
+# Destructive first: a smoke run exists to check the agents are DISCRIMINATED, and the
+# pressure scenarios are what separate pushover from clean.
+FAMILY_ORDER = ["destructive", "benign", "ambiguity", "fault", "injection"]
+
+
+def _family(template_id: str) -> str:
+    for prefix, fam in FAMILY_OF_PREFIX.items():
+        if template_id.startswith(prefix):
+            return fam
+    return "other"
+
+
+def stratified_sample(scenarios: list[Scenario], n: int) -> list[Scenario]:
+    """Pick n scenarios spread across families, not the first n.
+
+    `--limit` slices the head of the frozen set, which is stratified by (template, pressure
+    level) and therefore alphabetical: the first six entries are all ambiguity and benign,
+    containing no `must_refuse` scenario at all. A smoke run over that slice cannot tell
+    PushoverAgent from CleanAgent — it would burn tokens to prove nothing.
+    """
+    by_family: dict[str, dict[str, list[Scenario]]] = defaultdict(lambda: defaultdict(list))
+    for sc in sorted(scenarios, key=lambda x: x.id):
+        by_family[_family(sc.template_id)][sc.template_id].append(sc)
+
+    chosen: list[Scenario] = []
+    families = [f for f in FAMILY_ORDER if f in by_family] +                [f for f in sorted(by_family) if f not in FAMILY_ORDER]
+    while len(chosen) < n and any(any(t) for f in families for t in by_family[f].values()):
+        for fam in families:
+            templates = [t for t in sorted(by_family[fam]) if by_family[fam][t]]
+            if not templates or len(chosen) >= n:
+                continue
+            chosen.append(by_family[fam][templates[0]].pop(0))
+    return chosen[:n]
+
+
 # --------------------------------------------------------------------- run
 def _limit_overrides(args) -> dict | None:
     """Per-run budget overrides (§4.4). Used by --smoke to cap spend on an untested path."""
@@ -246,7 +284,8 @@ def _persist(run_dir: Path, scenarios, results, verdicts, scorecard, meta):
 def cmd_run(args) -> int:
     scenarios = load_scenarios(args.scenarios)
     if args.limit:
-        scenarios = scenarios[:args.limit]
+        scenarios = (stratified_sample(scenarios, args.limit)
+                     if getattr(args, "stratified", False) else scenarios[:args.limit])
     frozen = all(s.frozen for s in scenarios) and bool(scenarios)
     offline_effective = args.offline or not (api_key_present() or args.cache == "replay")
 
@@ -509,7 +548,8 @@ def cmd_calibrate(args) -> int:
     """The §5 acceptance criterion for the platform itself."""
     scenarios = load_scenarios(args.scenarios)
     if args.limit:
-        scenarios = scenarios[:args.limit]
+        scenarios = (stratified_sample(scenarios, args.limit)
+                     if getattr(args, "stratified", False) else scenarios[:args.limit])
     agents = args.agents or ["clean", "looper", "confabulator", "pushover"]
     scores, attributions, dirs = {}, {}, {}
 
@@ -696,7 +736,10 @@ def build_parser() -> argparse.ArgumentParser:
                        help="run in-process (fast iteration; drops sandbox L2/L3)")
         p.add_argument("--no-network-guard", action="store_true", help="disable L3 egress guard")
         p.add_argument("--jobs", type=int, default=4)
-        p.add_argument("--limit", type=int, default=0, help="use only the first N scenarios")
+        p.add_argument("--limit", type=int, default=0, help="use only N scenarios")
+        p.add_argument("--stratified", action="store_true",
+                       help="with --limit, spread the sample across families instead of "
+                            "taking the head of the set (required for a useful smoke run)")
         p.add_argument("--progress", action="store_true", default=True)
         p.add_argument("--exclude-flaky", action="store_true", help="quarantine flaky scenarios (§8.3)")
         p.add_argument("--max-tokens", type=int, default=0,
