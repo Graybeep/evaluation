@@ -17,9 +17,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
-DEFAULT_CACHE_DIR = Path("runs/_cache")
+# ARE_CACHE_DIR lets a replay run point at a recorded cache elsewhere (and lets tests use a
+# tmpdir instead of polluting runs/).
+DEFAULT_CACHE_DIR = Path(os.environ.get("ARE_CACHE_DIR", "runs/_cache"))
 
 
 class CacheMiss(Exception):
@@ -27,11 +30,13 @@ class CacheMiss(Exception):
 
 
 class ResponseCache:
-    def __init__(self, mode: str = "off", cache_dir: Path | str = DEFAULT_CACHE_DIR):
+    def __init__(self, mode: str = "off", cache_dir: Path | str | None = None):
         if mode not in ("off", "record", "replay"):
             raise ValueError(f"bad cache mode: {mode}")
         self.mode = mode
-        self.dir = Path(cache_dir)
+        # resolved at call time, not import time, so ARE_CACHE_DIR set by a caller applies
+        self.dir = Path(cache_dir if cache_dir is not None
+                        else os.environ.get("ARE_CACHE_DIR", "runs/_cache"))
         self.hits = 0
         self.misses = 0
         if mode != "off":

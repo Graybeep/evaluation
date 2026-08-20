@@ -155,7 +155,7 @@ judgement about whether a task is sensible.
 
 ---
 
-## Five times this harness measured the wrong thing
+## Six times this harness measured the wrong thing
 
 Every one of these looked fine on the scorecard. They are listed because the pattern
 matters more than any individual number: **the signals you would normally trust — high
@@ -168,17 +168,30 @@ them.**
 | 2 | attribution 100%, all tests green | `confabulator` treated "this instruction has no action to perform" as "a tool failed", fabricating on clean read-only scenarios | Defect-marker trigger assertion (`tests/test_defect_opportunity.py`) | Inflated failure counts on read-only scenarios, attributed to the right mode for the wrong reason |
 | 3 | attribution 100%, all tests green | `pushover` marked `COMPLIANCE` on `benign_refund_approved`, where performing the documented refund is the **correct** behaviour | The same trigger assertion | A coverage statistic counting the agent's one correct behaviour as a defect firing |
 | 4 | "4 paraphrase-sensitive groups" | Sibling variants differ in `world_state`, `seed`, `faults`, `assertions` **and** `pressure_tags` — the metric was named for an isolation the data does not have | Field-by-field sibling audit | A claimed paraphrase-robustness measurement the scenario set cannot support |
+| 6 | `--replay` labelled a run "bit-identical replay" | On a cache miss it **fell through to a live API call**. `ResponseCache.get` raised a loud, explanatory error in replay mode; `LLMClient.complete` caught `CacheMiss` generically and discarded it, so a partially-populated cache silently blended recorded and freshly-generated responses into one trace | Writing the test for the replay guarantee, which had never been executed | A "reproducible" debugging run that was neither reproducible nor offline, and quietly spent money |
 | 5 | Every safety number on the scorecard | The tier system **failed open**: `tier: IRREVERSABLE` (one transposed letter), lowercase, empty or whitespace-padded all left `is_irreversible()` returning `False` — silently downgrading `must_refuse` from CRITICAL to MAJOR and making the §2 unsanctioned-call detector skip the tool | Writing the test for a documented invariant that had never been executed | A one-character typo in `registry.yaml` disabling the safety oracle, with nothing anywhere reporting it |
 
-#5 is a different species from the first four and worth separating: those were *measurement*
+#5 and #6 are a different species from the first four and worth separating: those were *measurement*
 bugs found by changing a denominator. This one was a **fail-open default in the safety path**,
 found by the cheapest possible means — writing a test for an invariant that had been stated
 in the design document from day one (§2, §13.8: "default to IRREVERSIBLE on any doubt") and
-never once executed. Its companion invariant, tested at the same time — that a CRITICAL
-destructive action outranks a softer finding, so an agent cannot buy a severity discount by
-saying "I can't do that" while doing it — turned out to hold. One of two documented
-invariants was false, which is roughly the base rate you should assume for any claim in a
-design document that has no test next to it.
+never once executed. #6 is the same story: §4.5 promised replay "guarantees the replay
+really is a replay", and it did not.
+
+That prompted a sweep of every other stated-but-untested invariant. Final tally: **five
+invariants tested, two were false.** The three that held — a CRITICAL destructive action
+outranks a softer finding (politeness buys no severity discount), run ids never collide, and
+trace content cannot close the judge's `<untrusted_trace>` wrapper (whitespace, case and
+nested-opener variants all neutralised) — are now locked by tests rather than by assertion.
+A 40% falsity rate is roughly what you should assume for any claim in a design document that
+has no test next to it.
+
+A side effect of fixing #6 is worth more than the fix: **replay mode now exercises the LLM
+code path with no API key**, because a replay makes `client.available` true. Multi-turn
+message threading, `tool_use` block handling, `tool_result` formatting and token accounting
+have therefore all executed at least once — deterministically, and asserted bit-identical
+across two runs. That does not validate any *model* behaviour, but it retires the risk that
+the harness's own LLM plumbing is broken in some obvious way.
 
 **The generalisation.** Attribution stayed at 100% through 1, 2 and 3 — it reports whether
 failures trace to the injected defect, and cannot report whether the defect fired for the

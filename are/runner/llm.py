@@ -113,8 +113,14 @@ class LLMClient:
                 self.usage_sink(cached.get("input_tokens", 0) + cached.get("output_tokens", 0))
             return LLMResponse(**{**cached, "from_cache": True})
         except CacheMiss:
-            pass
-
+            # A replay miss is DELIBERATE and fatal. `ResponseCache.get` raises a loud,
+            # explanatory CacheMiss in replay mode; catching it generically here meant the
+            # explanation was discarded and the run quietly went to the live API instead —
+            # so "--replay guarantees the replay really is a replay" was false, and a
+            # partially-populated cache would silently mix recorded and fresh responses
+            # into one trace. Never let a replay fall through.
+            if self.cache.mode == "replay":
+                raise
         client = self._ensure_client()
         kwargs: dict = dict(model=self.model, max_tokens=self.max_tokens,
                             system=system, messages=messages)
