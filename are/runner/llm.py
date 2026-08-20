@@ -70,6 +70,29 @@ def api_key_present() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 
+def gateway_host() -> str | None:
+    """Non-None when traffic goes through a third-party gateway rather than Anthropic."""
+    from urllib.parse import urlparse
+
+    base = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+    if not base:
+        return None
+    host = urlparse(base).hostname
+    return None if host in (None, "api.anthropic.com") else host
+
+
+def model_label(model: str) -> str:
+    """The string recorded in every trace, verdict and report.
+
+    A pinned id means "this model produced these numbers". Through a gateway that claim is
+    unverifiable — the router decides what actually serves the request and nothing in the
+    response proves it. So the label carries the provenance instead of pretending it is a
+    first-party pin (§4.5, §13.1, and the same reasoning that disabled refusal fallbacks).
+    """
+    host = gateway_host()
+    return f"{model} (via {host}, provenance unverified)" if host else model
+
+
 class LLMClient:
     """Thin wrapper over the Anthropic Messages API with cache + usage accounting."""
 
@@ -78,6 +101,7 @@ class LLMClient:
                  max_tokens: int = DEFAULT_MAX_TOKENS, effort: str | None = None):
         self.role = role
         self.model = MODELS.get(role, MODELS["agent"])
+        self.reported_model = model_label(self.model)
         self.cache = cache or ResponseCache("off")
         self.seed = seed
         self.usage_sink = usage_sink

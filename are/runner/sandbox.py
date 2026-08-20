@@ -35,7 +35,20 @@ from are.runner.limits import SANDBOX_CAPS
 from are.schema.scenario import Scenario
 from are.schema.trace import RunResult, Step
 
-ALLOWED_HOSTS = {"api.anthropic.com", "localhost", "127.0.0.1", "::1"}
+def _configured_llm_host() -> set[str]:
+    """Honour ANTHROPIC_BASE_URL so a gateway can be used — but widen the allowlist
+    EXPLICITLY and visibly, never by quietly disabling the guard. `sandbox_status()`
+    reports the widened list, so a report always shows where traffic was allowed to go."""
+    import os
+    from urllib.parse import urlparse
+
+    base = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+    host = urlparse(base).hostname if base else None
+    return {host} if host else set()
+
+
+ALLOWED_HOSTS = ({"api.anthropic.com", "localhost", "127.0.0.1", "::1"}
+                 | _configured_llm_host())
 
 NETWORK_MODULES = ("requests", "httpx", "urllib.request", "urllib3", "socket", "aiohttp")
 

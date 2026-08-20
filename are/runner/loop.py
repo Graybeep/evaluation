@@ -39,7 +39,7 @@ def execute_run(scenario: Scenario, agent_name: str, repeat_idx: int = 0,
                 limit_overrides: dict | None = None) -> RunResult:
     client = make_client(agent_name, cache_mode, scenario.seed, offline)
     adapter = calib.build(agent_name, client)
-    model_version = client.model if client else OFFLINE_MODEL
+    model_version = client.reported_model if client else OFFLINE_MODEL
 
     faults = FaultEngine(faults=list(scenario.faults), seed=scenario.seed)
     world = World(scenario.world_state, seed=scenario.seed, fault_engine=faults)
