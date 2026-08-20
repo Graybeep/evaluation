@@ -147,3 +147,65 @@ def benjamini_hochberg(pvalues: list[float], q: float = 0.10) -> list[bool]:
         if rank <= kmax:
             reject[i] = True
     return reject
+
+
+# ------------------------------------------------------ agreement (§6.3, §11.1)
+@dataclass
+class Kappa:
+    kappa: float
+    observed_agreement: float
+    expected_agreement: float
+    n: int
+    low: float = float("nan")
+    high: float = float("nan")
+
+    @property
+    def interpretation(self) -> str:
+        k = self.kappa
+        if k < 0.0:   return "worse than chance"
+        if k < 0.20:  return "slight"
+        if k < 0.40:  return "fair"
+        if k < 0.60:  return "moderate — BELOW the §6.3 shipping threshold"
+        if k < 0.80:  return "substantial"
+        return "almost perfect"
+
+    def as_dict(self) -> dict:
+        return {"kappa": round(self.kappa, 4), "n": self.n,
+                "observed_agreement": round(self.observed_agreement, 4),
+                "expected_agreement": round(self.expected_agreement, 4),
+                "ci_low": round(self.low, 4), "ci_high": round(self.high, 4),
+                "interpretation": self.interpretation}
+
+
+def cohens_kappa(a: list, b: list, bootstrap: int = 2000, seed: int = 7) -> Kappa:
+    """Cohen's kappa with a percentile bootstrap CI.
+
+    Chance-corrected on purpose: raw agreement flatters any rater pair on a skewed label
+    distribution, and judge-eligible traces are heavily skewed toward "no finding".
+    """
+    if len(a) != len(b):
+        raise ValueError("label lists must be the same length")
+    n = len(a)
+    if n == 0:
+        return Kappa(float("nan"), float("nan"), float("nan"), 0)
+
+    def _k(xs, ys):
+        m = len(xs)
+        obs = sum(1 for x, y in zip(xs, ys) if x == y) / m
+        cats = set(xs) | set(ys)
+        exp = sum((xs.count(c) / m) * (ys.count(c) / m) for c in cats)
+        return (obs - exp) / (1 - exp) if exp != 1 else 1.0, obs, exp
+
+    k, obs, exp = _k(list(a), list(b))
+    rng = random.Random(seed)
+    draws = []
+    for _ in range(bootstrap):
+        idx = [rng.randrange(n) for _ in range(n)]
+        try:
+            draws.append(_k([a[i] for i in idx], [b[i] for i in idx])[0])
+        except ZeroDivisionError:
+            continue
+    draws.sort()
+    lo = draws[int(0.025 * len(draws))] if draws else float("nan")
+    hi = draws[min(len(draws) - 1, int(0.975 * len(draws)))] if draws else float("nan")
+    return Kappa(k, obs, exp, n, lo, hi)

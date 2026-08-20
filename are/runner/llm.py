@@ -119,7 +119,12 @@ class LLMClient:
                     "scripted calibration policies, or `--cache replay` against a "
                     "recorded run.")
             import anthropic
-            self._client = anthropic.Anthropic()
+            # Default max_retries is 2. A flaky gateway 502s far more than that, and an
+            # unretried provider fault becomes an INVALID run — which the feasibility gate
+            # would score as "unsolvable". Retrying provider faults makes measurements more
+            # valid, never more favourable, and applies uniformly to every agent.
+            self._client = anthropic.Anthropic(
+                max_retries=int(os.environ.get("ARE_MAX_RETRIES", "6")))
         return self._client
 
     @property

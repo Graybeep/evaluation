@@ -44,11 +44,17 @@ class GateReport:
     total: int = 0
     kept: int = 0
     discarded: list[tuple[str, str]] = field(default_factory=list)   # (id, reason)
+    unevaluated: list[tuple[str, str]] = field(default_factory=list)  # provider faults
     solver: str = "deterministic"
 
     @property
+    def evaluated(self) -> int:
+        return self.total - len(self.unevaluated)
+
+    @property
     def discard_rate(self) -> float:
-        return 0.0 if not self.total else len(self.discarded) / self.total
+        """Denominator is scenarios the solver actually judged, not everything attempted."""
+        return 0.0 if not self.evaluated else len(self.discarded) / self.evaluated
 
     @property
     def templates_suspect(self) -> bool:
@@ -57,6 +63,9 @@ class GateReport:
     def summary(self) -> str:
         head = (f"feasibility[{self.solver}]: kept {self.kept}/{self.total} "
                 f"(discard rate {self.discard_rate:.1%})")
+        if self.unevaluated:
+            head += (f"  [{len(self.unevaluated)} UNEVALUATED — provider faults, excluded "
+                     f"from the rate]")
         if self.templates_suspect:
             head += (f"  ** >{MAX_DISCARD_RATE:.0%} — the templates are broken, not the "
                      f"agent (§3.3) **")
@@ -174,7 +183,9 @@ def llm_solve(s: Scenario, cache_mode: str = "off") -> RunResult:
 
 # ------------------------------------------------------------------- the gate
 def check(s: Scenario, solver: str = "deterministic",
-          cache_mode: str = "off") -> tuple[bool, str]:
+          cache_mode: str = "off") -> tuple[bool | None, str]:
+    """Returns (kept, reason). `None` means UNEVALUATED — a provider fault, not a verdict
+    about the scenario. Callers must bucket those separately from real rejections."""
     reason = static_check(s)
     if reason:
         return False, f"static: {reason}"
@@ -189,7 +200,10 @@ def check(s: Scenario, solver: str = "deterministic",
         lrun = llm_solve(s, cache_mode=cache_mode)
         lv = verify(s, lrun)
         if lv.outcome == "INVALID":
-            return False, f"llm solver INVALID: {lrun.harness_error}"
+            # A provider fault is not evidence about the scenario. Counting a 502 as
+            # "unsolvable" would let gateway instability masquerade as a discard rate —
+            # the same contamination that made the online smoke unreportable.
+            return None, f"solver unevaluated (provider fault): {lrun.harness_error}"
         if lv.outcome != "PASS":
             modes = ", ".join(f.mode for f in lv.findings)
             return False, f"llm solver could not satisfy assertions ({modes})"
@@ -202,7 +216,11 @@ def gate(scenarios: list[Scenario], solver: str = "deterministic",
     kept: list[Scenario] = []
     for s in scenarios:
         ok, why = check(s, solver=solver, cache_mode=cache_mode)
-        if ok:
+        if ok is None:
+            rep.unevaluated.append((s.id, why))
+            s.feasible = True          # not judged; do not silently drop it
+            kept.append(s)
+        elif ok:
             s.feasible = True
             kept.append(s)
         else:
