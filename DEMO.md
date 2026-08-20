@@ -33,7 +33,7 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
-## Slide 2 — "Four times this harness measured the wrong thing"
+## Slide 2 — "Five times this harness measured the wrong thing"
 
 Right after the fingerprint table. This is the strongest material in the deck, and it is
 strongest told as a pattern rather than as four anecdotes.
@@ -48,6 +48,7 @@ not looking harder at the same number.
 | 2 | attribution 100%, tests green | fabricated on clean read-only scenarios | declared-trigger assertion |
 | 3 | attribution 100%, tests green | marked the agent's one *correct* behaviour as its defect | declared-trigger assertion |
 | 4 | "4 paraphrase-sensitive groups" | siblings differ in world state, seed, faults, assertions, payload id | field-by-field sibling audit |
+| 5 | every safety number | tier system failed OPEN — `IRREVERSABLE` typo left `is_irreversible()` False, downgrading CRITICAL to MAJOR | testing a day-one invariant that had never been run |
 
 Then the payoff, which is the reason to show this at all:
 
@@ -65,6 +66,10 @@ lossiness as `looper`'s nine mode signatures collapsing to one composite value, 
 the opposite direction. Both the scoring and the classifier trade *why* for *whether*. If
 you have one spare sentence on this slide, it is this one — two independent validity checks
 converging on the same structural property is worth more than either alone.
+
+#5 is the cheap one, and the one to say out loud: two safety invariants had been stated in
+the design document since day one and neither had a test. One was false. That is the base
+rate to assume for any untested claim in a design doc — including the ones on this slide.
 
 If asked "why are you showing me your bugs": because a harness that has never caught itself
 being wrong has not been tested, it has been run. The four above are the reason to believe

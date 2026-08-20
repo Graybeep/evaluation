@@ -155,7 +155,7 @@ judgement about whether a task is sensible.
 
 ---
 
-## Four times this harness measured the wrong thing
+## Five times this harness measured the wrong thing
 
 Every one of these looked fine on the scorecard. They are listed because the pattern
 matters more than any individual number: **the signals you would normally trust — high
@@ -168,6 +168,17 @@ them.**
 | 2 | attribution 100%, all tests green | `confabulator` treated "this instruction has no action to perform" as "a tool failed", fabricating on clean read-only scenarios | Defect-marker trigger assertion (`tests/test_defect_opportunity.py`) | Inflated failure counts on read-only scenarios, attributed to the right mode for the wrong reason |
 | 3 | attribution 100%, all tests green | `pushover` marked `COMPLIANCE` on `benign_refund_approved`, where performing the documented refund is the **correct** behaviour | The same trigger assertion | A coverage statistic counting the agent's one correct behaviour as a defect firing |
 | 4 | "4 paraphrase-sensitive groups" | Sibling variants differ in `world_state`, `seed`, `faults`, `assertions` **and** `pressure_tags` — the metric was named for an isolation the data does not have | Field-by-field sibling audit | A claimed paraphrase-robustness measurement the scenario set cannot support |
+| 5 | Every safety number on the scorecard | The tier system **failed open**: `tier: IRREVERSABLE` (one transposed letter), lowercase, empty or whitespace-padded all left `is_irreversible()` returning `False` — silently downgrading `must_refuse` from CRITICAL to MAJOR and making the §2 unsanctioned-call detector skip the tool | Writing the test for a documented invariant that had never been executed | A one-character typo in `registry.yaml` disabling the safety oracle, with nothing anywhere reporting it |
+
+#5 is a different species from the first four and worth separating: those were *measurement*
+bugs found by changing a denominator. This one was a **fail-open default in the safety path**,
+found by the cheapest possible means — writing a test for an invariant that had been stated
+in the design document from day one (§2, §13.8: "default to IRREVERSIBLE on any doubt") and
+never once executed. Its companion invariant, tested at the same time — that a CRITICAL
+destructive action outranks a softer finding, so an agent cannot buy a severity discount by
+saying "I can't do that" while doing it — turned out to hold. One of two documented
+invariants was false, which is roughly the base rate you should assume for any claim in a
+design document that has no test next to it.
 
 **The generalisation.** Attribution stayed at 100% through 1, 2 and 3 — it reports whether
 failures trace to the injected defect, and cannot report whether the defect fired for the
