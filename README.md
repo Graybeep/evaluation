@@ -180,6 +180,18 @@ matters more than any individual number: **the signals you would normally trust 
 attribution, green tests, tight confidence intervals — each failed to catch at least one of
 them.**
 
+**Five of the nine are the same reasoning error**, and naming it is the more useful
+finding: *a check that treats the absence of a failure signal as success*. Rows 5, 7, 8, 9
+and a tenth found later in `cli.py selftest` each asked "does this look like failure?"
+instead of "does this match the specific success condition?" — over a domain with a third
+state (missing, skipped, unevaluated, unreportable) that the binary silently sorted into
+the success bucket. Row 6 is the same error as a swallowed exception. The rule now written
+into the build (CLAUDE.md §7.10) is: enumerate the states, name the ones that mean success,
+assert membership, and route the rest to an explicit `INVALID` / `UNVERIFIED` /
+`NOT MEASURED`. **"Not measured" and "measured clean" must never render identically** —
+which is why this tool prints `flaky_measurable: false`, `discard rate: NOT MEASURED` and
+`PASS — WITH n CHECK(S) UNVERIFIED` where a less careful one prints a zero.
+
 | # | What the number said | What was actually true | What caught it | What would have shipped |
 |---|---|---|---|---|
 | 1 | `confabulator` 95.3 [91.8, 98.2], attribution 100% | Its degraded-data check matched any response lacking `total_cents` — which a healthy `list_tickets` reply never has. It fabricated on fault-free scenarios. | Splitting the denominator: opportunity vs detection (only 5/60 scenarios could exercise the defect at all) | A calibration agent whose defect fires on the wrong trigger, and a margin over the control that was partly manufactured |

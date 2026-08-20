@@ -814,7 +814,9 @@ def cmd_selftest(args) -> int:
     unverified: list[str] = []
     for row in selftest_injection(cache_mode=args.cache):
         _p(f"   {row['payload_id']:<14} {row['result']:<20} {row.get('detail', '')}")
-        ok &= not row["result"].startswith("FAIL")
+        # Assert the POSITIVE condition (§7.10). "Doesn't start with FAIL" silently
+        # admitted SKIPPED, which is how three unrun security checks scored as clean.
+        ok &= row["result"] == "PASS" or row["result"] in ("SKIPPED", "INCONCLUSIVE")
         # A check that did not run is not a check that passed. SKIPPED rows used to slip
         # through `startswith("FAIL")` and the command printed a bare PASS while its most
         # important security test had never executed — the same fail-open as bug #7

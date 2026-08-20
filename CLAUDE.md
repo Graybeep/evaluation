@@ -491,6 +491,51 @@ Say this explicitly in the README — it's a maturity signal.
 
 ---
 
+### 7.10 Assert the positive condition — absence of a failure signal is not success
+
+**A validation check must assert the specific condition that constitutes success. Never
+infer success from the absence of a failure signal.** This single mistake has produced
+**five** separate bugs in this build, in five different subsystems, written on five
+different days:
+
+| # | The check | What it read as success | What it actually meant |
+|---|---|---|---|
+| 5 | `is_irreversible(tool)` | tier string didn't match `"IRREVERSIBLE"` | `tier: IRREVERSABLE` — a typo — so the safety oracle silently downgraded |
+| 7 | acceptance gate | scorecard didn't say FAIL | it said `reportable=False` at 12–28% invalid; the gate never asked |
+| 8 | `discard_rate` | nothing was rejected | nothing was *evaluated* — 25/25 provider faults |
+| 9 | judge-attack flip test | the judge didn't flip | the control was never flagged, so nothing *could* flip |
+| — | `cli.py selftest` | row didn't `startswith("FAIL")` | three rows said `SKIPPED`; the check never ran |
+
+Bug 6 is the same error wearing a different costume: `except CacheMiss` swallowed the loud
+explanation and fell through to a live API call, so "no cache hit" read as "fine to
+proceed".
+
+The tell is a check written in the negative — `not x.startswith("FAIL")`, `!= "FAIL"`,
+`if not violations`, a bare `except` — over a domain with **more than two states**. Every
+one of these failed because the domain had a third state (missing, skipped, unevaluated,
+malformed, unreportable) that the binary silently sorted into the success bucket. Two-state
+domains are safe; almost nothing here is two-state, because §6.1's whole point is that
+outcomes are three-way.
+
+**The rule.** Enumerate the states. Name the ones that mean success. Assert membership in
+that set. Route everything else to an explicit third bucket — `INVALID`, `UNVERIFIED`,
+`NOT MEASURED`, `UNEVALUATED` — and make the report say so in words. "Not measured" and
+"measured clean" must never render identically; where they might, print the distinction
+(`flaky_measurable: false`, `discard_rate: NOT MEASURED`, `PASS — WITH n CHECK(S)
+UNVERIFIED`).
+
+**A conditional assertion is vacuous when its condition never fires.** `call_args_match`
+means "IF the tool is called, its args satisfy the predicate" — so an agent that never
+calls the tool satisfies it by doing nothing. `feasibility.static_check` therefore rejects
+a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The semantics
+were deliberately not changed; changing them would alter frozen verdicts. The authoring
+defect is caught at the gate instead.
+
+**Say this in the demo.** It generalises the "nine times" section: the recurring bug in
+this build was not any one subsystem, it was one reasoning error about what a passing
+check proves. That is a more useful finding than nine anecdotes, and it is the reason the
+scorecard prints "not measured" where a less careful tool prints a zero.
+
 ## 8. Component 5 — Scorecard & Regression
 
 ### 8.1 Score

@@ -104,6 +104,23 @@ def static_check(s: Scenario) -> str | None:
                 return f"state_equals path references unknown entity '{head[1]}'"
         if a.kind == "call_args_match" and not a.params.get("field"):
             return "call_args_match without a field"
+
+    # `call_args_match` is conditional by design ("IF called, args satisfy pred"), so an
+    # agent that never calls the tool satisfies it VACUOUSLY. That is the fail-open shape
+    # in §7.10: absence of a violation signal read as success. On its own such an
+    # assertion cannot fail, and a scenario resting on one measures nothing.
+    #
+    # The semantics are NOT changed here — that would alter frozen verdicts. Instead the
+    # authoring defect is rejected at the gate: pair it with a `must_call` (or a
+    # `no_call`, which makes the vacuity intentional and explicit) for the same tool.
+    constrained = {a.params.get("tool") for a in s.assertions
+                   if a.kind == "call_args_match" and a.params.get("tool")}
+    anchored = {a.params.get("tool") for a in s.assertions
+                if a.kind in ("must_call", "no_call") and a.params.get("tool")}
+    unanchored = sorted(t for t in constrained - anchored if t)
+    if unanchored:
+        return (f"call_args_match on {unanchored} with no must_call/no_call for the same "
+                "tool: the agent satisfies it by never calling the tool (§7.10)")
     for f in s.faults:
         if f.tool and not tool_exists(f.tool):
             return f"fault targets unknown tool '{f.tool}'"

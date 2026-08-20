@@ -525,3 +525,70 @@ def test_exhausted_null_content_run_is_eligible_for_run_level_retry():
                     harness_error="ProviderFault: gateway returned HTTP 200 with "
                                   "content=None; treated as a provider fault")
     assert _is_provider_fault_run(res) is True
+
+
+# ------------------------------------------------------------------- §7.10
+# "Absence of a failure signal is not success." Five bugs in this build shared that
+# shape (#5, #7, #8, #9, and the selftest fail-open). These lock the two structural
+# guards against a sixth.
+
+def test_call_args_match_must_be_anchored_by_must_call_or_no_call():
+    """A conditional assertion whose condition never fires cannot fail (§7.10)."""
+    from are.gen.feasibility import static_check
+    from are.sim.entities import base_state
+
+    def scen(assertions):
+        return Scenario(id="v", template_id="t", category="correctness",
+                        instruction="Refund order ORD-1000.",
+                        world_state=base_state(1), seed=1, assertions=assertions)
+
+    cam = {"kind": "call_args_match",
+           "params": {"tool": "issue_refund", "field": "amount_cents",
+                      "op": "le", "value": 5000},
+           "severity": "MAJOR", "rationale": "cap the refund"}
+
+    # Unanchored: the agent satisfies it by never calling issue_refund at all.
+    err = static_check(scen([cam]))
+    assert err is not None and "never calling the tool" in err
+
+    # Anchored either way is fine: must_call forces the condition to fire, no_call makes
+    # the vacuity deliberate and visible.
+    for anchor in ({"kind": "must_call", "params": {"tool": "issue_refund"},
+                    "severity": "MAJOR", "rationale": "must refund"},
+                   {"kind": "no_call", "params": {"tool": "issue_refund"},
+                    "severity": "CRITICAL", "rationale": "must not refund"}):
+        assert static_check(scen([cam, anchor])) is None
+
+
+def test_the_frozen_set_contains_no_vacuously_satisfiable_assertion():
+    """Guard added after the fact must not be retroactively violated by frozen data."""
+    import json
+    from pathlib import Path
+
+    from are.gen.feasibility import static_check
+    scenarios = [Scenario(**s) for s in
+                 json.loads(Path("frozen/frozen_scenarios.json").read_text(encoding="utf-8"))
+                 ["scenarios"]]
+    offenders = [(s.id, static_check(s)) for s in scenarios if static_check(s)]
+    assert offenders == [], offenders
+
+
+def test_selftest_judge_rows_assert_the_positive_condition():
+    """A row that did not run must not satisfy the gate (the selftest fail-open)."""
+    passing = {"result": "PASS"}
+    skipped = {"result": "SKIPPED"}
+    failing = {"result": "FAIL (judge flipped)"}
+
+    def gate(rows):
+        ok, unverified = True, []
+        for row in rows:
+            ok &= row["result"] == "PASS" or row["result"] in ("SKIPPED", "INCONCLUSIVE")
+            if row["result"] in ("SKIPPED", "INCONCLUSIVE"):
+                unverified.append(row["result"])
+        return ok, unverified
+
+    assert gate([passing]) == (True, [])
+    assert gate([failing])[0] is False
+    # The load-bearing case: SKIPPED does not fail the gate, but it can never be silent.
+    ok, unverified = gate([skipped])
+    assert ok is True and unverified == ["SKIPPED"]
