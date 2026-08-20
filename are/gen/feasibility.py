@@ -52,17 +52,29 @@ class GateReport:
         return self.total - len(self.unevaluated)
 
     @property
-    def discard_rate(self) -> float:
-        """Denominator is scenarios the solver actually judged, not everything attempted."""
-        return 0.0 if not self.evaluated else len(self.discarded) / self.evaluated
+    def discard_rate(self) -> float | None:
+        """Fraction of scenarios the solver actually JUDGED that it rejected.
+
+        `None` when nothing was evaluated — never 0.0. Returning 0.0 there is a fail-open
+        of the same species as the tier bug: "no scenario was rejected" and "no scenario
+        was judged" are opposite findings that would print identically. The LLM solver run
+        that exposed this returned 25/25 provider faults and would have been reported as a
+        clean 0% rejection rate.
+        """
+        if not self.evaluated:
+            return None
+        return len(self.discarded) / self.evaluated
 
     @property
     def templates_suspect(self) -> bool:
-        return self.discard_rate > MAX_DISCARD_RATE
+        rate = self.discard_rate
+        return rate is not None and rate > MAX_DISCARD_RATE
 
     def summary(self) -> str:
+        rate = self.discard_rate
+        shown = "NOT MEASURED (nothing evaluated)" if rate is None else f"{rate:.1%}"
         head = (f"feasibility[{self.solver}]: kept {self.kept}/{self.total} "
-                f"(discard rate {self.discard_rate:.1%})")
+                f"(discard rate {shown})")
         if self.unevaluated:
             head += (f"  [{len(self.unevaluated)} UNEVALUATED — provider faults, excluded "
                      f"from the rate]")

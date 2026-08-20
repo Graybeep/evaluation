@@ -372,3 +372,20 @@ def test_no_sandbox_reports_l3_off_rather_than_claiming_protection():
     off = sandbox_status(guard_network=False)
     assert "OFF" in off["L3_network"]
     assert "OFF" not in on["L3_network"]
+
+
+def test_gate_reports_unmeasured_rather_than_zero_when_nothing_was_evaluated():
+    """§3.3 / bug #8. "Nothing was rejected" and "nothing was judged" are opposite
+    findings; returning 0.0 for both is a fail-open. Found when the LLM solver returned
+    25/25 provider faults and the probe printed a clean-looking '0/0 = 0.0%'."""
+    from are.gen.feasibility import GateReport
+
+    nothing_judged = GateReport(total=25, kept=25, solver="llm")
+    nothing_judged.unevaluated = [(f"s{i}", "provider fault") for i in range(25)]
+    assert nothing_judged.discard_rate is None
+    assert "NOT MEASURED" in nothing_judged.summary()
+    assert nothing_judged.templates_suspect is False
+
+    judged_clean = GateReport(total=10, kept=10, solver="deterministic")
+    assert judged_clean.discard_rate == 0.0
+    assert "0.0%" in judged_clean.summary()
