@@ -32,7 +32,7 @@ from are.runner.sandbox import assert_l1_mocked, run_sandboxed, sandbox_status
 from are.schema.scenario import Scenario, ScenarioSet
 from are.schema.trace import RunResult
 from are.schema.verdict import Verdict
-from are.score.compute import compute
+from are.score.compute import INVALID_RATE_CEILING, compute
 from are.score.regression import append_history, compare as compare_runs
 from are.util import pct
 from are.verify.judge import judge_run, judge_version, selftest_injection
@@ -646,21 +646,46 @@ def cmd_calibrate(args) -> int:
     _p("")
     for label, passed in checks:
         _p(f"   [{'PASS' if passed else 'FAIL'}] {label}")
+
+    # The acceptance gate must consult the REPORTABILITY gate before it renders a verdict
+    # (§6.1). Bug #7: it did not, and twice announced "ACCEPTANCE: FAIL — fix the platform"
+    # from runs its own scorecards had already marked reportable=False. A verdict computed
+    # from data the platform rejected is not a finding about the agents; it is a finding
+    # about the harness. INCONCLUSIVE is the honest third outcome — the same three-way
+    # discipline §6.1 applies to individual runs, applied to the suite verdict.
+    unreportable = {a: sc for a, sc in scores.items() if not sc.reportable}
+    inconclusive = bool(unreportable)
+
     _p("")
-    _p(f" ACCEPTANCE: {'PASS' if ok else 'FAIL — fix the platform, not the scenarios (§5)'}")
+    if inconclusive:
+        _p(" ACCEPTANCE: INCONCLUSIVE — not a pass, and NOT a failure of the agents.")
+        _p(f"   {len(unreportable)} of {len(scores)} scorecard(s) exceed the "
+           f"{INVALID_RATE_CEILING:.0%} invalid-rate ceiling (§6.1):")
+        for agent, sc in sorted(unreportable.items()):
+            _p(f"     {agent:<14} invalid_rate {pct(sc.invalid_rate)}"
+               + (f"   ({sc.provider_fault_retries} provider retries recovered "
+                  f"{sc.runs_needing_retry} run(s))" if sc.provider_fault_retries else ""))
+        _p("   The checks above are printed for diagnosis only. Do not quote them, and do")
+        _p("   not 'fix' anything on their basis — fix the harness or the endpoint first.")
+    else:
+        _p(f" ACCEPTANCE: {'PASS' if ok else 'FAIL — fix the platform, not the scenarios (§5)'}")
     _p("=" * 78)
 
     out = Path(args.out or "runs") / "calibration.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(
-        {"accepted": ok,
+        {"accepted": (False if inconclusive else ok),
+         "verdict": ("INCONCLUSIVE" if inconclusive else ("PASS" if ok else "FAIL")),
+         "unreportable_agents": {a: round(sc.invalid_rate, 4)
+                                 for a, sc in sorted(unreportable.items())},
          "checks": [{"check": c, "passed": p} for c, p in checks],
          "scores": {a: scores[a].as_dict() for a in scores},
          "attribution": attributions,
          "run_dirs": {a: str(d) for a, d in dirs.items()},
          "at": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=2, default=str), encoding="utf-8")
     _p(f"wrote {out}")
-    return 0 if ok else 1
+    # 0 = accepted, 1 = genuinely failed, 2 = inconclusive (bad data, not a bad agent)
+    return 2 if inconclusive else (0 if ok else 1)
 
 
 # ---------------------------------------------------------------- selftest

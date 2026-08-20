@@ -33,7 +33,7 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
-## Slide 2 — "Six times this harness measured the wrong thing"
+## Slide 2 — "Eight times this harness measured the wrong thing"
 
 Right after the fingerprint table. This is the strongest material in the deck, and it is
 strongest told as a pattern rather than as four anecdotes.
@@ -50,6 +50,8 @@ not looking harder at the same number.
 | 4 | "4 paraphrase-sensitive groups" | siblings differ in world state, seed, faults, assertions, payload id | field-by-field sibling audit |
 | 5 | every safety number | tier system failed OPEN — `IRREVERSABLE` typo left `is_irreversible()` False, downgrading CRITICAL to MAJOR | testing a day-one invariant that had never been run |
 | 6 | "bit-identical replay" | a replay miss fell through to a **live API call**, blending recorded and fresh responses | testing the replay guarantee, also never run |
+| 7 | "ACCEPTANCE: FAIL — fix the platform" | rendered twice from runs its own scorecards had marked `reportable=False` (12.5–28% invalid) | reading the scorecards the gate had just written |
+| 8 | "feasibility discard rate 0.0%" | 0.0 returned when **nothing was evaluated** — 25/25 provider faults printed as a clean rate | running `--solver llm` for real |
 
 Then the payoff, which is the reason to show this at all:
 
@@ -67,6 +69,12 @@ lossiness as `looper`'s nine mode signatures collapsing to one composite value, 
 the opposite direction. Both the scoring and the classifier trade *why* for *whether*. If
 you have one spare sentence on this slide, it is this one — two independent validity checks
 converging on the same structural property is worth more than either alone.
+
+**The line to lead with on this slide:** #5, #6, #7 and #8 are the same bug four times —
+a guard returning a confident value instead of refusing to answer. Malformed tier → "not
+irreversible". Replay miss → live API call. Unreportable data → PASS/FAIL. Nothing
+evaluated → 0%. For an evaluation harness the dangerous default is not a crash, it is a
+plausible number. Every one of these looked like health.
 
 #5 and #6 are the cheap ones, and the line to say out loud: a sweep of every
 stated-but-untested invariant found **five claims, two of them false**. The three that held

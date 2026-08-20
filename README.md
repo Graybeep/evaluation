@@ -155,7 +155,7 @@ judgement about whether a task is sensible.
 
 ---
 
-## Six times this harness measured the wrong thing
+## Eight times this harness measured the wrong thing
 
 Every one of these looked fine on the scorecard. They are listed because the pattern
 matters more than any individual number: **the signals you would normally trust — high
@@ -169,6 +169,8 @@ them.**
 | 3 | attribution 100%, all tests green | `pushover` marked `COMPLIANCE` on `benign_refund_approved`, where performing the documented refund is the **correct** behaviour | The same trigger assertion | A coverage statistic counting the agent's one correct behaviour as a defect firing |
 | 4 | "4 paraphrase-sensitive groups" | Sibling variants differ in `world_state`, `seed`, `faults`, `assertions` **and** `pressure_tags` — the metric was named for an isolation the data does not have | Field-by-field sibling audit | A claimed paraphrase-robustness measurement the scenario set cannot support |
 | 6 | `--replay` labelled a run "bit-identical replay" | On a cache miss it **fell through to a live API call**. `ResponseCache.get` raised a loud, explanatory error in replay mode; `LLMClient.complete` caught `CacheMiss` generically and discarded it, so a partially-populated cache silently blended recorded and freshly-generated responses into one trace | Writing the test for the replay guarantee, which had never been executed | A "reproducible" debugging run that was neither reproducible nor offline, and quietly spent money |
+| 7 | `ACCEPTANCE: FAIL — fix the platform, not the scenarios` | The acceptance gate never consulted the **reportability** gate. It rendered that confident verdict twice from runs whose own scorecards said `reportable=False` at 12.5–28% invalid — blaming the agents for a provider outage | Reading the scorecards the gate had just written and noticing they disagreed with it | A headline "the calibration ranking does not survive real models", sourced entirely from Cloudflare 502s |
+| 8 | `feasibility[llm]: discard rate 0.0%` | `discard_rate` returned **0.0 when nothing had been evaluated**. The LLM solver run that exposed it was 25/25 provider faults — "nothing was rejected" and "nothing was judged" printed identically | Running `--solver llm` for real and reading the 0/0 | "The LLM gate rejects 0%, same as the deterministic one" written up as a finding about the gate |
 | 5 | Every safety number on the scorecard | The tier system **failed open**: `tier: IRREVERSABLE` (one transposed letter), lowercase, empty or whitespace-padded all left `is_irreversible()` returning `False` — silently downgrading `must_refuse` from CRITICAL to MAJOR and making the §2 unsanctioned-call detector skip the tool | Writing the test for a documented invariant that had never been executed | A one-character typo in `registry.yaml` disabling the safety oracle, with nothing anywhere reporting it |
 
 #5 and #6 are a different species from the first four and worth separating: those were *measurement*
@@ -192,6 +194,16 @@ message threading, `tool_use` block handling, `tool_result` formatting and token
 have therefore all executed at least once — deterministically, and asserted bit-identical
 across two runs. That does not validate any *model* behaviour, but it retires the risk that
 the harness's own LLM plumbing is broken in some obvious way.
+
+**The pattern in half of them.** #5, #6, #7 and #8 are one bug wearing four costumes: **a
+guard that returns a confident, benign-looking value instead of refusing to answer.** A
+malformed risk tier resolved to "not irreversible" rather than "I don't know". A replay
+cache miss fell through to a live API call rather than stopping. An acceptance gate rendered
+PASS/FAIL rather than INCONCLUSIVE. A discard rate returned 0% rather than "not measured".
+In every case the fix was the same shape — make the code say *I don't know* — and in every
+case the pre-fix behaviour was indistinguishable from health on the scorecard. If there is
+one transferable lesson here it is that **for an evaluation harness, the dangerous default
+is not a crash; it is a plausible number.**
 
 **The generalisation.** Attribution stayed at 100% through 1, 2 and 3 — it reports whether
 failures trace to the injected defect, and cannot report whether the defect fired for the

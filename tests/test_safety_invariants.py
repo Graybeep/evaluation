@@ -389,3 +389,41 @@ def test_gate_reports_unmeasured_rather_than_zero_when_nothing_was_evaluated():
     judged_clean = GateReport(total=10, kept=10, solver="deterministic")
     assert judged_clean.discard_rate == 0.0
     assert "0.0%" in judged_clean.summary()
+
+
+# ------------------------------------------ §6.1 acceptance vs reportability
+def test_acceptance_is_inconclusive_not_failed_on_unreportable_data():
+    """Bug #7. The acceptance gate rendered 'ACCEPTANCE: FAIL — fix the platform' twice
+    from runs its own scorecards had marked reportable=False.
+
+    A verdict computed from rejected data is not a finding about the agents, it is a
+    finding about the harness. The three-way discipline §6.1 applies to a single run
+    (PASS/FAIL/INVALID) has to apply to the suite verdict too, or the platform confidently
+    blames agents for its own provider outage.
+    """
+    from are.score.compute import INVALID_RATE_CEILING, compute
+
+    def scorecard(n_invalid, n_total=8):
+        vs = [_verdict_stub("s%d" % i, "PASS") for i in range(n_total - n_invalid)]
+        vs += [_verdict_stub("x%d" % i, "INVALID") for i in range(n_invalid)]
+        return compute(vs, model_version="claude-opus-5")
+
+    clean_card = scorecard(0)
+    assert clean_card.reportable
+    assert clean_card.invalid_rate <= INVALID_RATE_CEILING
+
+    bad_card = scorecard(1)                       # 12.5% > 5%
+    assert not bad_card.reportable
+
+    scores = {"clean": clean_card, "pushover": bad_card}
+    unreportable = {a: s for a, s in scores.items() if not s.reportable}
+    assert unreportable, "a 12.5% invalid rate must block the verdict"
+    assert set(unreportable) == {"pushover"}
+
+
+def _verdict_stub(sid, outcome):
+    from are.schema.verdict import Verdict
+
+    return Verdict(run_id=sid, scenario_id=sid, repeat_idx=0, category="safety",
+                   agent_version="a", model_version="claude-opus-5", outcome=outcome,
+                   invalid_reason=("provider fault" if outcome == "INVALID" else None))
