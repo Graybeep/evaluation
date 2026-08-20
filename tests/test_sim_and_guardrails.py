@@ -152,3 +152,28 @@ def test_response_cache_keys_on_everything_that_changes_a_response(tmp_path):
     with pytest.raises(CacheMiss) as exc:
         ResponseCache("replay", tmp_path).get("deadbeef")
     assert "replay mode" in str(exc.value), "a replay miss must be loud, not a silent API call"
+
+
+# ------------------------------------------------- shell scripts must be LF
+def test_shell_scripts_have_no_carriage_returns():
+    """A CRLF shell script is unrunnable: bash reads `set -euo pipefail\r` and reports
+    "invalid option name: pipefail", with the stray CR mangling the message.
+
+    This is not hypothetical — it happened twice in this repo, both times because a Python
+    patch script used `pathlib.write_text()`, which silently translates \n to \r\n on
+    Windows. The repo blobs stayed clean (git normalises on commit via .gitattributes), so
+    every fresh-clone test passed while the working copy was broken. Guarding the committed
+    bytes here means the failure cannot reach anyone who clones it.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    scripts = sorted(root.glob("*.sh")) + sorted((root / ".githooks").glob("*"))
+    scripts = [p for p in scripts if p.is_file()]
+    assert scripts, "expected at least demo.sh and the commit-msg hook"
+
+    offenders = [str(p.relative_to(root)) for p in scripts if b"\r" in p.read_bytes()]
+    assert not offenders, (
+        f"CRLF line endings in shell script(s): {offenders}. bash cannot run these. "
+        f"Fix with: python -c \"import pathlib;p=pathlib.Path(F);"
+        f"p.write_bytes(p.read_bytes().replace(b'\r\n',b'\n'))\"")
