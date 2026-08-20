@@ -21,7 +21,7 @@ in which case update the file first, then write the code.
 | microVM / gVisor *hypervisor isolation* | We **do** build sandboxed execution (§7.9) — just not VM-grade. All tools are mocked, so there is no code to contain. |
 | Multi-domain support | One domain done well beats three done shallowly. |
 | Judge-as-primary-oracle | Cannot validate a judge without human labels we don't have time to produce. |
-| Real MCP adapter for arbitrary agents | Adapter shim for one agent loop shape only (§4.3). |
+| ~~Real MCP adapter for arbitrary agents~~ **BUILT, 2026-08-21** | Shipped as an MCP *server* (`runner/mcp_server.py`, `cli.py mcp-serve`): ARE is the tool provider, so the agent under test is the host. Scoped honestly — see §4.3. |
 | Classifier→generator feedback loop | Reward-hacks the classifier. Explicitly out of scope. |
 | Distributed / parallel execution | asyncio with a semaphore is enough. |
 
@@ -227,7 +227,26 @@ class AgentAdapter(Protocol):
   Covers ~most agents people will point at this.
 - `CallableAdapter` — wraps any Python function. Used by calibration agents (§5).
 
-Do not build an MCP adapter unless Day 3 finishes early. Note it as future work.
+> **Built 2026-08-21.** An MCP adapter has only one coherent direction here: ARE already
+> IS the tool provider (§2, §4.1), so ARE is the **server** and the agent under test is
+> the host. "ARE as MCP client" would mean calling an agent as if it were a tool, which is
+> not what the protocol does.
+>
+> `runner/mcp_server.py` serves one scenario's registry over line-delimited JSON-RPC on
+> stdio (`initialize`, `tools/list`, `tools/call`), no third-party dependency. `cli.py
+> mcp-serve` blocks until the host closes stdin, then writes `run.json`, `verdict.json`,
+> `traces.jsonl` and `provenance.json` for the ordinary verifier.
+>
+> **What it costs, recorded on every such run rather than discovered later.** The host
+> owns the loop, so of the three §4.4 kill switches only two survive: `max_tool_calls` and
+> `wall_clock_s` are enforced (every call comes through us), **`max_tokens` cannot be** —
+> token usage is between the host and its provider. The trace is tool-level only; agent
+> messages are not observable. So `must_refuse` / `must_request_clarification` and both
+> judge modes (§6.3) depend on the host calling the extra `submit_answer` tool, and are
+> reported UNEVALUATED — never satisfied — when it does not. Runs carry `transport: mcp`
+> and an `@mcp` suffix on `agent_version` so they cannot be pooled with in-harness runs
+> invisibly (§11.5). The §5 calibration agents do NOT run over this transport, so it is
+> not covered by the acceptance criterion.
 
 ### 4.4 Execution limits — three independent kill switches
 
@@ -605,7 +624,7 @@ Traces as JSONL, one object per step. Everything else JSON. No database.
 
 ### Day 4 — buffer
 Buffer, not features. Use it for: demo script, one real third-party agent run, fixing
-whatever broke. If genuinely free: MCP adapter, or a second domain.
+whatever broke. If genuinely free: ~~MCP adapter~~ (done, §4.3), or a second domain.
 
 ---
 

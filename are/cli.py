@@ -219,6 +219,7 @@ def _limit_overrides(args) -> dict | None:
 # NEVER applies to an agent failure or a genuine harness bug, only to 5xx/rate-limit
 # faults from the endpoint.
 PROVIDER_FAULT_MARKERS = ("InternalServerError", "APIConnectionError", "APITimeoutError",
+                          "ProviderFault",
                           "502", "503", "504", "overloaded", "rate_limited")
 RUN_RETRY_DEFAULT = 2
 
@@ -575,6 +576,47 @@ def cmd_compare_modes(args) -> int:
     return 0 if on_ok else 1
 
 
+# --------------------------------------------------------------------- mcp
+def cmd_mcp_serve(args) -> int:
+    """Serve one scenario's toolset over MCP (stdio) for an EXTERNAL agent (§4.3).
+
+    Blocks until the host closes stdin, then writes the run + its provenance so the
+    ordinary verifier and scorecard can consume it. Everything the harness cannot observe
+    over this transport is recorded as unobservable rather than defaulted.
+    """
+    from are.runner.mcp_server import serve
+    from are.verify.rules import verify
+
+    scenarios = {s.id: s for s in load_scenarios(args.scenarios)}
+    scen = scenarios.get(args.scenario_id)
+    if scen is None:
+        _p(f"no such scenario: {args.scenario_id}")
+        return 2
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+
+    def on_close(session):
+        run = session.to_run_result()
+        prov = session.provenance()
+        verdict = verify(scen, run)
+        (out / "traces.jsonl").write_text(
+            chr(10).join(st.model_dump_json() for st in run.steps), encoding="utf-8")
+        (out / "run.json").write_text(run.model_dump_json(indent=2), encoding="utf-8")
+        (out / "verdict.json").write_text(verdict.model_dump_json(indent=2), encoding="utf-8")
+        (out / "provenance.json").write_text(json.dumps(prov, indent=2), encoding="utf-8")
+        if not prov["final_answer_submitted"]:
+            (out / "WARNING.txt").write_text(
+                "The host never called submit_answer, so must_refuse / "
+                "must_request_clarification and both judge modes could not be evaluated "
+                "on this run. Treat text-based assertions as UNEVALUATED, not satisfied.",
+                encoding="utf-8")
+
+    serve(scen, agent_label=args.label, on_close=on_close,
+          limit_overrides=_limit_overrides(args))
+    return 0
+
+
 # ------------------------------------------------------------------ report
 def cmd_report(args) -> int:
     from are.report.render import render_report
@@ -769,12 +811,24 @@ def cmd_selftest(args) -> int:
 
     _p("")
     _p(f"judge injection self-tests (§7.2) — judge {judge_version()}")
+    unverified: list[str] = []
     for row in selftest_injection(cache_mode=args.cache):
         _p(f"   {row['payload_id']:<14} {row['result']:<20} {row.get('detail', '')}")
         ok &= not row["result"].startswith("FAIL")
+        # A check that did not run is not a check that passed. SKIPPED rows used to slip
+        # through `startswith("FAIL")` and the command printed a bare PASS while its most
+        # important security test had never executed — the same fail-open as bug #7
+        # (gate ignoring reportability) and bug #8 (0% for "nothing evaluated").
+        if row["result"] in ("SKIPPED", "INCONCLUSIVE"):
+            unverified.append(f"§7.2 judge-attack {row['payload_id']}: {row['result']}")
         if row["result"] == "INCONCLUSIVE":
             _p("      ^ the judge-attack test could not discriminate; treat §7.2 as "
                "UNVERIFIED rather than passing")
+    if unverified:
+        _p(f"   -> {len(unverified)} check(s) DID NOT RUN. The judge's resistance to our "
+           "own injection corpus is UNVERIFIED, not passing.")
+        _p("      Offline, the judge logic and this suite's ability to fail are covered by "
+           "tests/test_judge.py; live-model resistance needs an endpoint.")
 
     _p("")
     _p("credentials (§7.1)")
@@ -785,8 +839,19 @@ def cmd_selftest(args) -> int:
     ok &= "sk-ant-" not in scrub(probe)
 
     _p("")
-    _p(f"SELFTEST: {'PASS' if ok else 'FAIL'}")
-    return 0 if ok else 1
+    if not ok:
+        _p("SELFTEST: FAIL")
+        return 1
+    if unverified:
+        _p(f"SELFTEST: PASS — WITH {len(unverified)} CHECK(S) UNVERIFIED")
+        for u in unverified:
+            _p(f"   unverified: {u}")
+        if getattr(args, "strict", False):
+            _p("   --strict: an unverified check is a failure. Exit 1.")
+            return 1
+        return 0
+    _p("SELFTEST: PASS")
+    return 0
 
 
 # -------------------------------------------------------------------- main
@@ -883,7 +948,21 @@ def build_parser() -> argparse.ArgumentParser:
     runner_flags(cal)
     cal.set_defaults(func=cmd_calibrate)
 
+    mc = sub.add_parser("mcp-serve",
+                        help="serve one scenario's tools over MCP (stdio) to an external agent")
+    mc.add_argument("--scenarios", default="frozen/frozen_scenarios.json")
+    mc.add_argument("--scenario-id", required=True)
+    mc.add_argument("--out", default="runs/mcp-run")
+    mc.add_argument("--label", default="external", help="agent label recorded on the run")
+    mc.add_argument("--wall-clock-s", type=float)
+    mc.add_argument("--max-tool-calls", type=int)
+    mc.add_argument("--max-tokens", type=int)
+    mc.set_defaults(func=cmd_mcp_serve)
+
     st = sub.add_parser("selftest", help="sandbox, isolation, judge-attack and scrub checks")
+    st.add_argument("--strict", action="store_true",
+                    help="treat a check that could not run (e.g. judge-attack with no API "
+                         "key) as a failure rather than reporting it as unverified")
     st.add_argument("--cache", choices=["off", "record", "replay"], default="off")
     st.set_defaults(func=cmd_selftest)
     return ap

@@ -357,7 +357,7 @@ are/
   tools/      registry.yaml, specs.py                risk tiers, manually declared
   sim/        world.py, faults.py, entities.py       the simulator (L1 boundary)
   gen/        templates/*.yaml, expand.py, feasibility.py, audit.py
-  runner/     adapter.py, loop.py, limits.py, cache.py, llm.py, sandbox.py
+  runner/     adapter.py, loop.py, limits.py, cache.py, llm.py, sandbox.py, mcp_server.py
   verify/     rules.py, judge.py, taxonomy.py
   score/      compute.py, stats.py, regression.py
   probes/     pressure_corpus.yaml, README.md        dual-use; see §7.4
@@ -392,16 +392,42 @@ reflects that co-design as much as it reflects the agent — and a co-designed c
 ceiling is exactly the kind of number that deserves suspicion. **Headline numbers about an
 agent must come from an LLM-backed run**; every report banners which mode produced it.
 
-**The online validation has not been run.** No credentials of any kind were available in
-this environment (`ANTHROPIC_API_KEY` unset, no `ant` CLI profile), so `demo.sh --online`,
-the LLM feasibility solver, the LLM phrasing pass and the judge have never executed against
-a real model. The four-way ordering above is an offline result only. Until that run happens,
-treat the acceptance criterion as *the platform is internally consistent*, not *the platform
-measures model behaviour correctly*.
+**What the online runs settle, and what was never at stake.** Three separate statements,
+because collapsing them into "no validated online run" loses two of the three:
+
+1. **The online execution path is mechanically validated** against a live, non-Anthropic
+   endpoint — 32 runs, real `tool_use` blocks, kill switches firing, provider faults
+   classified. The plumbing is not hypothetical. Detail in limitation 1a.
+2. **Co-design independence is partially validated, and that is the objection that
+   mattered.** The scripted policies and the scenario templates were authored in the same
+   repo, so `clean` at exactly 100.0 is suspect. `qwen-3.8-max-free` has zero relationship
+   to this repo, and the four-way ordering was still recovered from it — clean 95.6 >
+   looper 60.7 ≈ confabulator 57.1 > pushover 33.3. That is the co-design objection being
+   answered by a model that could not have been tuned to the suite. It is *partial* because
+   the run sat at 12.5% `invalid_rate` against the 5% ceiling (§6.1), so it is logged as a
+   hypothesis, not a finding.
+3. **No Claude-attributed reliability claim exists, and none was ever required.** §11.5
+   already establishes that absolute scores are not comparable across agents on different
+   toolsets — only paired, same-suite comparisons are meaningful. A per-model reliability
+   number was therefore never a deliverable of this project, and its absence is not a gap
+   in the argument. What would be a gap is claiming one, which nothing here does.
+
+The judge has still never executed against any model, and the LLM feasibility solver
+returned 25/25 provider faults on the one endpoint available. The headline four-way table
+remains an offline result; treat the acceptance criterion as *the platform is internally
+consistent*, with (2) as the independent corroboration it was missing.
 
 ---
 
 ## Limitations
+
+1. **The online path ran, and its reliability numbers do not transfer — two findings, not
+   one absence.** Stated as one sentence up front because a reader who skims "no validated
+   online run" misses half of it: **the online path executed successfully against a
+   non-Anthropic model (`qwen-3.8-max-free`) via a third-party router at 12.5% invalid, all
+   of it gateway-attributed; zero Claude-attributed data exists.** The first clause is real
+   evidence the code works. The second is real evidence about why the reliability numbers
+   specifically do not transfer yet. The detail behind each follows.
 
 1a. **The online execution path IS mechanically validated.** This is a positive claim and
    it was earned, so it is stated separately from what it does not establish. Against a
@@ -485,8 +511,18 @@ measures model behaviour correctly*.
     scenario scores 0.35 and its composite interval collapses to a point. The composite
     cannot distinguish those nine failure shapes; the per-mode table is where that
     information lives.
-14. **No MCP adapter.** One agent-loop shape is supported (`SimpleLoopAdapter`), plus any
-    Python callable (`CallableAdapter`).
+14. **The MCP transport measures less than the in-process one, by construction.** ARE
+    ships an MCP server (`are/runner/mcp_server.py`, `cli.py mcp-serve`) so an external
+    agent — Claude Desktop, Claude Code, your own host — can be pointed at a scenario. But
+    when the host owns the loop, the harness loses instrumentation: **`max_tokens` cannot
+    be enforced**, because token usage is between the host and its provider and we never
+    see it. The trace is tool-level only, with no view of the agent's internal messages.
+    Assertions over the mutation log and final state stay fully evaluable; `must_refuse`
+    and `must_request_clarification` need the host to call `submit_answer`, and are
+    reported as UNEVALUATED rather than satisfied when it doesn't. Such runs carry
+    `transport: mcp` provenance and an `@mcp` suffix on `agent_version`, so they are never
+    pooled with in-harness runs invisibly. Three in-process shapes remain fully
+    instrumented: `SimpleLoopAdapter`, `CallableAdapter`, and the scripted policies.
 
 ---
 

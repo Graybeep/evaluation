@@ -49,11 +49,36 @@ DEFAULT_MAX_TOKENS = 4000
 # Provider-fault retry policy. Bounded and counted, never silent.
 # 5xx ONLY: a 429 from this gateway means "insufficient credits", which retrying cannot
 # fix and which must surface as a real failure rather than be masked by backoff.
-PROVIDER_RETRIES = int(os.environ.get("ARE_PROVIDER_RETRIES", "2"))
+#
+# The ceiling is hard (§AA3). Retries are how provider instability stops corrupting an
+# agent measurement; they are also how it becomes invisible. A run that needed four
+# retries to clear is a DIFFERENT FACT from one that passed clean, so the count keeps
+# flowing through the single `provider_fault_retries` counter (§Y2) into the scorecard
+# and the report. Raising the env override past MAX buys silence, not reliability.
+MAX_PROVIDER_RETRIES = 4
+PROVIDER_RETRIES = min(int(os.environ.get("ARE_PROVIDER_RETRIES", "4")),
+                       MAX_PROVIDER_RETRIES)
 RETRY_BACKOFF_S = float(os.environ.get("ARE_RETRY_BACKOFF_S", "2.0"))
+MAX_BACKOFF_S = 16.0
+
+
+class ProviderFault(RuntimeError):
+    """A 200 whose body a provider-agnostic caller cannot parse.
+
+    Distinct from a 5xx only in how it arrives. The first-party Anthropic API always
+    returns a `content` list; a third-party gateway can return HTTP 200 with
+    `content: null` on an empty, filtered or truncated upstream completion. That is a
+    provider failure wearing a success status code, and it must be classified as one.
+
+    Specifically it must NOT be read as an empty completion, because "the model produced
+    no output" is a claim about AGENT BEHAVIOUR that a null body does not support — the
+    same misattribution T2 and U4 each caught once already.
+    """
 
 
 def _is_provider_fault(exc: Exception) -> bool:
+    if isinstance(exc, ProviderFault):
+        return True
     status = getattr(exc, "status_code", None)
     return isinstance(status, int) and 500 <= status < 600
 
@@ -178,13 +203,18 @@ class LLMClient:
         for attempt in range(PROVIDER_RETRIES + 1):
             try:
                 resp = client.messages.create(**kwargs)
+                if getattr(resp, "content", None) is None:
+                    raise ProviderFault(
+                        "gateway returned HTTP 200 with content=None "
+                        f"(stop_reason={getattr(resp, 'stop_reason', None)!r}); "
+                        "treated as a provider fault, never as an empty agent turn")
                 break
             except Exception as exc:
                 last = exc
                 if attempt >= PROVIDER_RETRIES or not _is_provider_fault(exc):
                     raise
                 self.provider_fault_retries += 1
-                _time.sleep(RETRY_BACKOFF_S * (2 ** attempt))   # exponential
+                _time.sleep(min(RETRY_BACKOFF_S * (2 ** attempt), MAX_BACKOFF_S))
         if resp is None:                                        # pragma: no cover
             raise last if last else RuntimeError("no response and no exception")
         self.calls += 1

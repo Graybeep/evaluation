@@ -7,6 +7,7 @@ about, because everything downstream reports normally while it is broken.
 """
 from __future__ import annotations
 
+import types
 import warnings
 from pathlib import Path
 
@@ -427,3 +428,100 @@ def _verdict_stub(sid, outcome):
     return Verdict(run_id=sid, scenario_id=sid, repeat_idx=0, category="safety",
                    agent_version="a", model_version="claude-opus-5", outcome=outcome,
                    invalid_reason=("provider fault" if outcome == "INVALID" else None))
+
+
+# ---------------------------------------------------------------- AA2 / AA3
+# A gateway 200 with content=None crashed the harness with
+# `TypeError: 'NoneType' object is not iterable` (are/runner/llm.py:194), which read as a
+# harness bug and cost 2 of the 4 invalids in runs/smoke-online-v2. It is a provider fault.
+
+class _NullContentResp:
+    content = None
+    stop_reason = "end_turn"
+    usage = types.SimpleNamespace(input_tokens=1, output_tokens=0)
+
+
+class _OKResp:
+    content = [types.SimpleNamespace(type="text", text="ok")]
+    stop_reason = "end_turn"
+    usage = types.SimpleNamespace(input_tokens=1, output_tokens=1)
+
+    @staticmethod
+    def _dump():
+        return {"type": "text", "text": "ok"}
+
+
+@pytest.fixture(autouse=True)
+def _no_real_backoff(monkeypatch):
+    """The retry path sleeps exponentially; tests assert the policy, not the wall clock."""
+    import time as _t
+    monkeypatch.setattr(_t, "sleep", lambda *_a, **_k: None)
+
+
+def _client_returning(*responses):
+    """An LLMClient whose transport yields `responses` in order."""
+    from are.runner import llm as _llm
+    c = _llm.LLMClient(role="agent")
+    seq = list(responses)
+    calls = {"n": 0}
+
+    class _Msgs:
+        def create(self, **kw):
+            calls["n"] += 1
+            r = seq.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+
+    c._client = types.SimpleNamespace(messages=_Msgs())
+    c._ensure_client = lambda: c._client
+    return c, calls
+
+
+def test_null_content_is_a_provider_fault_not_a_typeerror():
+    """content=None must classify as a provider fault, never crash, never parse."""
+    from are.runner import llm as _llm
+    assert _llm._is_provider_fault(_llm.ProviderFault("x")) is True
+    c, calls = _client_returning(*[_NullContentResp()] * (_llm.PROVIDER_RETRIES + 1))
+    with pytest.raises(_llm.ProviderFault):
+        c.complete(system="s", messages=[{"role": "user", "content": "hi"}])
+    # It exhausted the retry budget rather than failing on the first null body...
+    assert calls["n"] == _llm.PROVIDER_RETRIES + 1
+    # ...and every one of those attempts is on the SINGLE Y2 counter (§AA3), not a new one.
+    assert c.provider_fault_retries == _llm.PROVIDER_RETRIES
+
+
+def test_null_content_is_never_reported_as_an_empty_agent_turn():
+    """The misattribution AA2 exists to prevent: gateway failure read as agent silence."""
+    from are.runner import llm as _llm
+    c, _ = _client_returning(*[_NullContentResp()] * (_llm.PROVIDER_RETRIES + 1))
+    try:
+        c.complete(system="s", messages=[{"role": "user", "content": "hi"}])
+        raise AssertionError("null content must not return a response object")
+    except _llm.ProviderFault as exc:
+        assert "provider fault" in str(exc)
+        assert "empty agent turn" in str(exc)
+
+
+def test_provider_retries_have_a_hard_ceiling(monkeypatch):
+    """Env override buys silence past the cap, so the cap is enforced, not advisory."""
+    monkeypatch.setenv("ARE_PROVIDER_RETRIES", "999")
+    import importlib
+    from are.runner import llm as _llm
+    reloaded = importlib.reload(_llm)
+    try:
+        assert reloaded.PROVIDER_RETRIES == reloaded.MAX_PROVIDER_RETRIES == 4
+    finally:
+        monkeypatch.delenv("ARE_PROVIDER_RETRIES", raising=False)
+        importlib.reload(_llm)
+
+
+def test_exhausted_null_content_run_is_eligible_for_run_level_retry():
+    """A ProviderFault that exhausts in-client retries must still be a run-level fault."""
+    from are.cli import _is_provider_fault_run
+    from are.schema.trace import RunResult
+    res = RunResult(run_id="r", scenario_id="s", repeat_idx=0, agent_version="a",
+                    model_version="m", seed=1, steps=[], mutation_log=[], final_state={},
+                    harness_error="ProviderFault: gateway returned HTTP 200 with "
+                                  "content=None; treated as a provider fault")
+    assert _is_provider_fault_run(res) is True
