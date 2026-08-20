@@ -32,6 +32,14 @@ python -m are.cli run --agent pushover --scenarios frozen/frozen_scenarios.json 
 python -m are.cli compare runs/pushover-v1 runs/pushover-v2
 ```
 
+On Windows, `python` often resolves in PowerShell but **not** in Git Bash (the Store alias
+lives in `WindowsApps`, which bash does not always inherit). `demo.sh` resolves an
+interpreter itself and tells you what to do if it cannot; to force one:
+
+```bash
+PYTHON=python3 bash demo.sh            # or: PYTHON=/c/Python311/python.exe bash demo.sh
+```
+
 No `ANTHROPIC_API_KEY`? Everything above still runs: the calibration agents fall back to
 **scripted policies** carrying the same defects. See *Offline mode* below for what that
 does and does not prove.
