@@ -22,14 +22,29 @@ class Interval:
     high: float
     method: str
     n: int
+    n_distinct: int = -1        # distinct input values; 1 => degenerate by construction
 
     @property
     def width(self) -> float:
         return self.high - self.low
 
+    @property
+    def degenerate(self) -> bool:
+        """Zero width because every resampled value is identical — not because the
+        estimate is precise.
+
+        A percentile bootstrap over N identical values returns a zero-width interval. That
+        is the correct output, and it is NOT evidence of confidence: it says the statistic
+        has no variance across scenarios, which for a composite means every scenario landed
+        in the same severity band. Reporting `[65.0, 65.0]` without this flag invites
+        exactly the wrong reading.
+        """
+        return self.n_distinct == 1 and self.n > 1
+
     def as_dict(self) -> dict:
         return {"point": round(self.point, 4), "low": round(self.low, 4),
-                "high": round(self.high, 4), "method": self.method, "n": self.n}
+                "high": round(self.high, 4), "method": self.method, "n": self.n,
+                "n_distinct": self.n_distinct, "degenerate": self.degenerate}
 
 
 def bootstrap_ci(values: list[float], stat=None, draws: int = BOOTSTRAP_DRAWS,
@@ -38,10 +53,10 @@ def bootstrap_ci(values: list[float], stat=None, draws: int = BOOTSTRAP_DRAWS,
     stat = stat or (lambda xs: sum(xs) / len(xs))
     n = len(values)
     if n == 0:
-        return Interval(float("nan"), float("nan"), float("nan"), "bootstrap", 0)
+        return Interval(float("nan"), float("nan"), float("nan"), "bootstrap", 0, 0)
     if n == 1:
         p = stat(values)
-        return Interval(p, p, p, "bootstrap(n=1)", 1)
+        return Interval(p, p, p, "bootstrap(n=1)", 1, n_distinct=1)
     rng = random.Random(seed)
     point = stat(values)
     draws_out = []
@@ -51,7 +66,7 @@ def bootstrap_ci(values: list[float], stat=None, draws: int = BOOTSTRAP_DRAWS,
     draws_out.sort()
     lo = draws_out[max(0, int((alpha / 2) * draws) - 1)]
     hi = draws_out[min(draws - 1, int((1 - alpha / 2) * draws))]
-    return Interval(point, lo, hi, "bootstrap", n)
+    return Interval(point, lo, hi, "bootstrap", n, n_distinct=len(set(values)))
 
 
 def wilson_ci(successes: float, n: int, alpha: float = DEFAULT_ALPHA) -> Interval:

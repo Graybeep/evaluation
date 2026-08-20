@@ -107,7 +107,11 @@ def _headline(sc, meta) -> str:
 <div class='grid'>
   <div class='card'><h3>composite</h3><div class='big'>{sc.composite.point:.1f}</div>
     <div class='ci'>[{sc.composite.low:.1f}, {sc.composite.high:.1f}] 95% CI
-    ({sc.composite.method}, n={sc.composite.n} scenarios)</div></div>
+    ({sc.composite.method}, n={sc.composite.n} scenarios)</div>
+    {"<div class='ci degen'><b>degenerate by construction</b> — all "
+     f"{sc.composite.n} scenarios share one penalty value. Zero width means zero variance "
+     "across scenarios, not a precise estimate.</div>" if sc.composite.degenerate else ""}
+    </div>
   <div class='card'><h3>pass rate</h3><div class='big'>{pct(sc.pass_rate.point)}</div>
     <div class='ci'>[{pct(sc.pass_rate.low)}, {pct(sc.pass_rate.high)}]</div></div>
   <div class='card'><h3>invalid rate</h3><div class='big'>{pct(sc.invalid_rate)}</div>
@@ -356,6 +360,7 @@ pre{background:#f8fafc;border:1px solid var(--bd);border-radius:6px;padding:10px
 .instr{background:#f8fafc;padding:8px 10px;border-radius:6px}
 .steps{color:var(--mut);font-size:12px}
 .verdict{font-weight:600}
+.degen{color:#78350f;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:5px 7px;margin-top:6px;display:block}
 .modebar{position:sticky;top:0;z-index:9;margin:-32px -32px 18px;padding:10px 32px;
          font-size:13px;border-bottom:1px solid var(--bd)}
 .modebar.off{background:#fffbeb;color:#78350f}

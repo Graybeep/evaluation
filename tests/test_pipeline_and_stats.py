@@ -233,13 +233,13 @@ def test_report_guard_rejects_leaked_payload_text():
 def test_frozen_set_matches_its_recorded_hash():
     """Backstop for the commit-msg hook, which `--no-verify`, `git revert` and any
     server-side path can bypass. A silent re-freeze fails the suite everywhere."""
-    import hashlib
+    from are.util import content_digest
 
     manifest = FROZEN.parent / "MANIFEST.sha256"
     assert manifest.exists(), "frozen/MANIFEST.sha256 is missing"
     recorded = next(line.split()[0] for line in manifest.read_text(encoding="utf-8").splitlines()
                     if line.strip() and not line.startswith("#"))
-    actual = hashlib.sha256(FROZEN.read_bytes()).hexdigest()
+    actual = content_digest(FROZEN)
     assert actual == recorded, (
         "the frozen benchmark set changed without updating frozen/MANIFEST.sha256.\n"
         "Every previously reported headline number was computed on the old set (§3.4).\n"
@@ -280,3 +280,20 @@ def test_variant_sensitivity_is_measured_across_variants_not_repeats():
 
     agree = verdicts_for("t__v0__P0", "PASS", "t") + verdicts_for("t__v1__P0", "PASS", "t")
     assert compute(agree, model_version="claude-opus-5").variant_sensitive == []
+
+
+def test_zero_width_interval_is_flagged_degenerate_not_precise():
+    """V1: a bootstrap over identical values returns width 0. That is zero variance, not
+    confidence, and the scorecard must not let it read as precision."""
+    identical = bootstrap_ci([0.35] * 60, seed=1)
+    assert identical.width == 0
+    assert identical.degenerate is True
+    assert identical.n_distinct == 1
+
+    varied = bootstrap_ci([0.0] * 43 + [0.1] * 5 + [0.35] * 12, seed=1)
+    assert varied.width > 0
+    assert varied.degenerate is False
+    assert varied.n_distinct == 3
+
+    # a genuinely single-scenario run is not "degenerate", it is just n=1
+    assert bootstrap_ci([0.5], seed=1).degenerate is False

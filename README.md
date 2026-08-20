@@ -147,6 +147,49 @@ judgement about whether a task is sensible.
 
 ---
 
+## Four times this harness measured the wrong thing
+
+Every one of these looked fine on the scorecard. They are listed because the pattern
+matters more than any individual number: **the signals you would normally trust — high
+attribution, green tests, tight confidence intervals — each failed to catch at least one of
+them.**
+
+| # | What the number said | What was actually true | What caught it | What would have shipped |
+|---|---|---|---|---|
+| 1 | `confabulator` 95.3 [91.8, 98.2], attribution 100% | Its degraded-data check matched any response lacking `total_cents` — which a healthy `list_tickets` reply never has. It fabricated on fault-free scenarios. | Splitting the denominator: opportunity vs detection (only 5/60 scenarios could exercise the defect at all) | A calibration agent whose defect fires on the wrong trigger, and a margin over the control that was partly manufactured |
+| 2 | attribution 100%, all tests green | `confabulator` treated "this instruction has no action to perform" as "a tool failed", fabricating on clean read-only scenarios | Defect-marker trigger assertion (`tests/test_defect_opportunity.py`) | Inflated failure counts on read-only scenarios, attributed to the right mode for the wrong reason |
+| 3 | attribution 100%, all tests green | `pushover` marked `COMPLIANCE` on `benign_refund_approved`, where performing the documented refund is the **correct** behaviour | The same trigger assertion | A coverage statistic counting the agent's one correct behaviour as a defect firing |
+| 4 | "4 paraphrase-sensitive groups" | Sibling variants differ in `world_state`, `seed`, `faults`, `assertions` **and** `pressure_tags` — the metric was named for an isolation the data does not have | Field-by-field sibling audit | A claimed paraphrase-robustness measurement the scenario set cannot support |
+
+**The generalisation.** Attribution stayed at 100% through 1, 2 and 3 — it reports whether
+failures trace to the injected defect, and cannot report whether the defect fired for the
+intended reason. The test suite was green through 1, 2 and 3, because no test asserted
+anything about *why* a defect fired. `confabulator`'s interval, [91.8, 98.2], was
+comfortably non-degenerate throughout 1 — a tight interval around a wrong number is still
+tight.
+
+What actually caught them, in each case, was a mechanism that changed the *denominator or
+the unit*, not one that looked harder at the same number:
+
+* **denominator splitting** — separating "the defect could fire here" from "the defect was
+  detected here" turned a healthy-looking 95.3 into "measured on 5 of 60 scenarios" (#1);
+* **declared-trigger assertions** — each defective agent now declares its trigger and emits
+  a `defect_marker` step, and the suite asserts every firing occurred under it (#2, #3);
+* **structural audit of the data** — comparing sibling scenarios field by field, rather
+  than trusting the name on the metric (#4).
+
+A fifth check was then run deliberately against the co-design problem: `quitter@v1`, an
+agent whose defect (announce completion, never perform the mutation) was chosen **after**
+the taxonomy was frozen, with **no detector added to catch it**. On the 14 frozen scenarios
+where that defect is testable it was caught **14/14**, landing on `TASK_INCOMPLETE` and
+`WRONG_FINAL_STATE` — evidence the taxonomy generalises past the defects it was authored
+against. (Its 7 passing scenarios are read-only tasks where doing the read *is* the task, so
+the "defect" produces correct behaviour there. On refuse/ask scenarios it surfaces as
+`REFUSAL_EXPECTED` rather than an incompleteness mode — the classifier categorises by what
+the scenario required, not by the agent's internal defect.)
+
+---
+
 ## Design decisions worth defending
 
 **The verdict is computed, not inferred.** Assertion kinds are authored in templates; the
@@ -177,6 +220,14 @@ it actually varies: siblings differ in `world_state`, `seed`, `faults`, `asserti
 sensitivity. The scorecard also reports
 `flaky_measurable`, so an empty flaky list against a deterministic agent reads as **"not
 measured"**, never as "none found".
+
+**A zero-width interval is flagged, not celebrated.** A percentile bootstrap over N
+identical values returns width 0 — correct output, and not evidence of precision. `clean`
+(every scenario penalty 0.0) and `looper` (every scenario penalty 0.35) both produce
+degenerate intervals, and the scorecard labels them *degenerate by construction* rather than
+letting `[65.0, 65.0]` read as a very confident estimate. `confabulator` and `pushover`
+produce 125 and 25 distinct bootstrap values respectively on the same code path, which is
+how the resampling was confirmed sound rather than assumed.
 
 **A run is scored by its worst finding.** The first severity model summed weights across
 modes; it double-counted correlated detectors (one unapproved refund trips
@@ -311,7 +362,12 @@ measures model behaviour correctly*.
     60 scenarios; 25 are gated by the agent's own safety path and 18 never receive the
     trigger. The detection rate is sound on its own denominator but the sample is small,
     and its lower confidence bound (0.82) is the number to quote, not the point estimate.
-13. **No MCP adapter.** One agent-loop shape is supported (`SimpleLoopAdapter`), plus any
+13. **Worst-finding scoring discards within-band variation.** `looper` fails with nine
+    distinct mode signatures across the frozen set, but all of them are MAJOR, so every
+    scenario scores 0.35 and its composite interval collapses to a point. The composite
+    cannot distinguish those nine failure shapes; the per-mode table is where that
+    information lives.
+14. **No MCP adapter.** One agent-loop shape is supported (`SimpleLoopAdapter`), plus any
     Python callable (`CallableAdapter`).
 
 ---

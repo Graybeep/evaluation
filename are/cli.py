@@ -315,6 +315,11 @@ def print_scorecard(sc, meta: dict | None = None) -> None:
     else:
         _p(f" composite   {c.point:6.1f}   [{c.low:.1f}, {c.high:.1f}] 95% CI "
            f"({c.method}, n={c.n} scenarios)")
+        if c.degenerate:
+            _p(f"             ** interval is DEGENERATE BY CONSTRUCTION: all {c.n} "
+               f"scenarios share one penalty value.")
+            _p(f"                Zero width here means zero variance across scenarios, "
+               f"NOT a precise estimate.")
         _p(f" pass rate   {pct(sc.pass_rate.point):>6}   "
            f"[{pct(sc.pass_rate.low)}, {pct(sc.pass_rate.high)}]")
     _p(f" invalid     {pct(sc.invalid_rate):>6}   {'OK' if sc.reportable else '** NOT REPORTABLE (§6.1) **'}")

@@ -33,6 +33,36 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
+## Slide 2 — "Four times this harness measured the wrong thing"
+
+Right after the fingerprint table. This is the strongest material in the deck, and it is
+strongest told as a pattern rather than as four anecdotes.
+
+The one-line version: **attribution, green tests, and tight confidence intervals each failed
+to catch at least one of these.** What caught them was changing the denominator or the unit,
+not looking harder at the same number.
+
+| # | The number said | The truth | Caught by |
+|---|---|---|---|
+| 1 | confabulator 95.3 [91.8, 98.2], attribution 100% | defect fired on the wrong trigger (`total_cents` in any response) | denominator split: only 5/60 scenarios could exercise it |
+| 2 | attribution 100%, tests green | fabricated on clean read-only scenarios | declared-trigger assertion |
+| 3 | attribution 100%, tests green | marked the agent's one *correct* behaviour as its defect | declared-trigger assertion |
+| 4 | "4 paraphrase-sensitive groups" | siblings differ in world state, seed, faults, assertions, payload id | field-by-field sibling audit |
+
+Then the payoff, which is the reason to show this at all:
+
+> A fifth defect was chosen **after** the taxonomy was frozen — an agent that announces
+> completion and never performs the change — with **no detector added for it**. On the 14
+> scenarios where that defect is testable it was caught 14/14, on `TASK_INCOMPLETE` and
+> `WRONG_FINAL_STATE`. That is the evidence that the taxonomy generalises past what it was
+> authored against.
+
+If asked "why are you showing me your bugs": because a harness that has never caught itself
+being wrong has not been tested, it has been run. The four above are the reason to believe
+the fifth result.
+
+---
+
 ## Running order (3 minutes)
 
 | # | Beat | Command | The point |
@@ -42,10 +72,11 @@ It is just not a claim about models, and the slide must not imply that it is.
 | 2 | Four agents, defects not disclosed | `python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox` | Ranking recovered; 100% attribution; CI disjointness checked, not eyeballed |
 | 3 | One failure, end to end | open `runs/demo-pushover-v1/report.html` | Framing → `issue_refund` → the assertion that caught it, with the payload referenced by id only |
 | 4 | v1 → v2, measured pairwise | `python -m are.cli compare runs/demo-pushover-v1 runs/demo-pushover-v2` | McNemar + BH + minimum meaningful effect; the P3-only delta shows *where* the fix landed |
-| 5 | Limitations | `README.md` | Judge uncalibrated and never run; online never run; L3 degraded online; co-design caveat |
+| 5 | Four self-measurement failures | `README.md` § "Four times…" | Attribution, green tests and tight CIs each missed one; the untargeted fifth defect was still caught 14/14 |
+| 6 | Limitations | `README.md` | Judge uncalibrated and never run; online never run; L3 degraded online; co-design caveat |
 
-Step 5 is the one people remember. Step 0 is the one that decides whether they believe
-steps 2–4.
+Steps 5 and 6 are the ones people remember. Step 0 is the one that decides whether they
+believe steps 2–4 at all.
 
 ---
 
@@ -74,6 +105,13 @@ that the defect fired for the intended reason. Those came apart here: a bug made
 fabricate on fault-free scenarios while attribution still read 100%.
 `tests/test_defect_opportunity.py` asserts every firing occurs under its declared trigger.
 That is the check that catches it; the scorecard number never will.
+
+**"Isn't a [65.0, 65.0] interval suspiciously confident?"**
+It is degenerate by construction, and the scorecard says so on the card. Every one of that
+agent's 60 scenarios carries the same penalty value, so a bootstrap over them has zero
+variance. It means "this failure is deterministic", not "this estimate is precise". The two
+agents with genuine spread produce 125 and 25 distinct bootstrap values on the same code
+path — that is how the resampling was checked rather than assumed.
 
 **"Can this block a merge?"**
 No, by design. Nothing in `score/` returns a gate decision. A hard automated gate on an

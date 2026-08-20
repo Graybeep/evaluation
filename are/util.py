@@ -42,3 +42,17 @@ def truncate(text: str, n: int = 4000) -> str:
 
 def pct(x: float) -> str:
     return f"{100 * x:.1f}%"
+
+
+def content_digest(path) -> str:
+    """SHA-256 over line-ending-normalised bytes.
+
+    Used for the frozen-set manifest (§3.4). Hashing raw bytes made the check fail on
+    any clone whose checkout rewrote CRLF to LF — the guarantee is about the scenario
+    *content* not changing, not about which platform wrote the file.
+    """
+    import hashlib
+    from pathlib import Path
+
+    raw = Path(path).read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(raw).hexdigest()
