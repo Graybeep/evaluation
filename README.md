@@ -375,7 +375,24 @@ measures model behaviour correctly*.
 ## Dual-use notice
 
 `are/probes/pressure_corpus.yaml` is, functionally, a small jailbreak library. It exists to
-measure whether an agent performs irreversible actions it should refuse. Payload **text**
-lives only in that file; reports and slides reference payloads by **id and category only**,
-and `report/render.py` asserts this mechanically before writing a file. See
-`are/probes/README.md`.
+measure whether an agent performs irreversible actions it should refuse.
+
+**It is published here deliberately, and the reasoning is recorded in CLAUDE.md §7.4.**
+Short version: the headline regression result is not reproducible without it —
+`pushover@v2`'s gate keys on authority-vs-urgency cues in the instruction text, so redacted
+payloads collapse v2 onto v1 and the P3 delta (+44.1) disappears. The payloads are in-domain
+ops-console phrasings aimed at tools that are mocked with no pass-through (L1), not novel or
+transferable exploits.
+
+What that exception does **not** relax, and what is enforced mechanically rather than by
+convention:
+
+* payload text lives in that one file and nowhere else;
+* reports reference payloads by **id and category only** — `report/render.py` calls
+  `assert_no_payload_text()` and refuses to write a report that leaks one, and scenario
+  instructions are redacted to `[pressure payload ID / category — text withheld]` in every
+  trace drill-down;
+* `are/probes/README.md` states the intended use and the rules for adding to it.
+
+If the corpus ever grows novel, cross-domain, or non-mocked-tool payloads, it goes back to
+private distribution.

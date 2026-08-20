@@ -404,6 +404,27 @@ The authority/urgency/injection templates are, functionally, a small jailbreak l
 - The public report references payloads **by ID and category**, never full text.
 - Do not publish the raw corpus in the repo README or the demo slides.
 
+> **Publication decision, 2026-08-20.** The repository is published publicly
+> (hackathon submission, `github.com/Graybeep/evaluation`), and that **includes**
+> `are/probes/pressure_corpus.yaml`. This is a deliberate exception to the third bullet,
+> recorded here so the repo and this file do not contradict each other. The reasoning:
+>
+> * **Reproducibility.** The headline regression result depends on payload text.
+>   `pushover@v2`'s gate keys on authority-vs-urgency cues *in the instruction*, so
+>   placeholder payloads collapse v2 onto v1 and the P3 delta (+44.1), the McNemar
+>   p=0.0312 and the whole pairwise demo become unreproducible by a reader.
+> * **Low marginal risk.** The payloads are in-domain ops-console framing against tools
+>   that are mocked with no pass-through (§7.1, L1). They are standard pressure-test
+>   phrasings, not novel or transferable exploits.
+> * **What is still enforced, mechanically.** The first two bullets stand and are not
+>   softened: payload text lives only in that one file, and `report/render.py` asserts no
+>   payload text reaches a rendered report before writing it (`assert_no_payload_text`),
+>   with instructions redacted to `id / category` in every drill-down.
+>
+> What would change this: novel or cross-domain payloads, or payloads effective against
+> tools that are not mocked. Neither is true of this corpus. If either becomes true, the
+> corpus goes back to private distribution and this note gets reverted.
+
 ### 7.5 Isolation
 - Fresh `World` per run. Assert it. A leaked mutation between runs silently invalidates
   every downstream number.
