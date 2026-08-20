@@ -383,10 +383,43 @@ measures model behaviour correctly*.
 
 ## Limitations
 
-1. **The LLM judge is uncalibrated and has never run.** No human-labelled agreement study,
-   so no κ is reported. Judge-derived findings are marked *LLM-judged, unvalidated* wherever
-   they appear, and `--judge` is opt-in. Cutting it entirely and reporting rule-based modes
-   only is a supported, more defensible configuration.
+1a. **The online execution path IS mechanically validated.** This is a positive claim and
+   it was earned, so it is stated separately from what it does not establish. Against a
+   live, non-scripted endpoint the harness has demonstrably performed: multi-turn tool
+   calling (real `tool_use` blocks, `tool_result` threading, message-history reconstruction
+   verified by cache-key match), kill switches firing on real runs (`BUDGET_EXCEEDED`,
+   `TIMEOUT`), provider-fault classification (502s recorded as INVALID, never blamed on the
+   agent), bounded counted retries (27 recoveries across 13 of 32 runs, surfaced rather than
+   laundered), and provenance-carrying model labels. The plumbing works.
+
+1b. **Model-attributed reliability results remain unvalidated.** Two independent reasons,
+   either of which alone is disqualifying:
+
+   * **No reportable run was achieved.** `invalid_rate` was 28% on the first attempt and
+     12.5% after raising the wall-clock cap and adding 5xx retries — against a 5% ceiling
+     (§6.1). Every failure was gateway instability, not agent behaviour. The available
+     infrastructure could not sustain a reportable run, and the full-suite run was
+     deliberately not attempted on that basis.
+   * **The endpoint was not Anthropic, and its model identity is unverifiable.** Traffic
+     went to a third-party router (`router.bynara.id`); the model served was
+     `qwen-3.8-max-free` — **no Claude model was involved in any online run**. Even the
+     Qwen identity rests on the router's own echo and the model's self-report, neither of
+     which is proof: a gateway can serve a different checkpoint, a quantised build, or a
+     substitute, and nothing in the response would reveal it. Every online artefact is
+     therefore labelled `qwen-3.8-max-free (via router.bynara.id, provenance unverified)`,
+     and no number from those runs appears in this README or the tagged artifact.
+
+   Consequently **this project reports no validated model-attributed reliability result.**
+   The headline table is scripted-policy behaviour with the co-design caveat above; the one
+   online ordering signal obtained came from a 12.5%-invalid run and is logged as a
+   hypothesis, not a finding.
+
+1c. **The LLM judge is uncalibrated and has never run.** No human-labelled agreement study,
+   so no κ is reported — and a κ computed against labels produced by Claude would be
+   circular, since the judge is Claude. Judge-derived findings are marked *LLM-judged,
+   unvalidated* wherever they appear, and `--judge` is opt-in. Cutting it entirely and
+   reporting rule-based modes only is a supported, more defensible configuration. Cohen's κ
+   with a bootstrap CI is implemented and waiting on human labels.
 2. **Scenarios come from 13 hand-authored templates.** Coverage is bounded by template
    imagination, not by the real failure distribution.
 3. **Single domain** (Internal Ops Console). Cross-domain transfer is unvalidated.
@@ -401,9 +434,11 @@ measures model behaviour correctly*.
 7. **The feasibility gate is validated against mutations we authored.** 100% catch over six
    classes (n=40) shows it catches the defect classes we thought of — the same co-design
    exposure as the calibration agents. It has never rejected a real generated scenario
-   (0/174), and `--solver llm`, the backend that would catch "possible but unreasonable"
-   rather than "impossible", has never executed. Counted as future work, not a shipped
-   capability.
+   (0/174). `--solver llm`, the backend that would catch "possible but unreasonable" rather
+   than "impossible", **was attempted and could not be evaluated**: a 25-scenario sample
+   returned 25/25 provider faults in 766s against the only endpoint available, so the
+   rejection rate is `NOT MEASURED`, not 0%. (Reporting it as 0% was bug #8.) Counted as
+   future work, not a shipped capability.
 8. **L3 is OS-enforced only for offline container runs.** Online runs need egress to the LLM
    API, so `network_mode: none` is off and only a process-level allowlist remains — a
    control, not containment. The parent-process unix-socket proxy that would close this is

@@ -97,7 +97,7 @@ the fifth result.
 | 3 | One failure, end to end | open `runs/demo-pushover-v1/report.html` | Framing → `issue_refund` → the assertion that caught it, with the payload referenced by id only |
 | 4 | v1 → v2, measured pairwise | `python -m are.cli compare runs/demo-pushover-v1 runs/demo-pushover-v2` | McNemar + BH + minimum meaningful effect; the P3-only delta shows *where* the fix landed |
 | 5 | Four self-measurement failures | `README.md` § "Four times…" | Attribution, green tests and tight CIs each missed one; the untargeted fifth defect was still caught 14/14 |
-| 6 | Limitations | `README.md` | Judge uncalibrated and never run; online never run; L3 degraded online; co-design caveat |
+| 6 | Limitations | `README.md` | Split 1a/1b: the online *path* works and is demonstrated; model-attributed *results* are unvalidated (no reportable run; endpoint was Qwen via a third-party router, not Claude). Judge uncalibrated; L3 degraded online; co-design caveat |
 
 Steps 5 and 6 are the ones people remember. Step 0 is the one that decides whether they
 believe steps 2–4 at all.
@@ -161,6 +161,21 @@ supported and more defensible configuration.
 Do not get defensive here. The honest version is stronger: "correct, which is why it is off
 by default, why it can only produce 2 of 13 modes, and why none of the numbers you are
 looking at used it."
+
+**"Did you ever run it against a real model?"** — *answer both halves, in this order.*
+Yes, and the execution path is validated: live multi-turn tool calls, kill switches firing,
+provider faults correctly classified INVALID rather than blamed on agents, retries counted
+and surfaced. The plumbing demonstrably works.
+
+And no, not in a way that produces a quotable number. The endpoint available was a
+third-party router serving **Qwen, not Claude** — so no Claude model was involved — and it
+could not sustain a reportable run: 28% invalid on the first attempt, 12.5% after raising
+the timeout and adding retries, against a 5% ceiling. Every online artefact is labelled
+`provenance unverified`, and none of those numbers are in the repo or on these slides.
+
+Say the first half without hedging and the second half without flinching. The split is the
+point: "the path works, the results don't exist yet" is a precise engineering status, and
+it is much stronger than either "we ran it online" or "we never tried".
 
 **"Can this block a merge?"**
 No, by design. Nothing in `score/` returns a gate decision. A hard automated gate on an
