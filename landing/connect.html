@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect your agent — Agent Reliability Engine</title>
+<meta name="description" content="Point ARE at your AI agent over MCP and get a report card back.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/are.css">
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html">
+      <svg class="brand-mk" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8.4"
+              stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+        <path d="M9 20.5 13.4 12l4.2 8.2 2.4-4.2H23" stroke="currentColor"
+              stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="13.4" cy="12" r="2.1" fill="currentColor"/>
+      </svg>
+      <span>Agent Reliability Engine</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html" data-nav="index.html">Home</a>
+      <a href="connect.html" data-nav="connect.html">Connect your agent</a>
+      <a href="results.html" data-nav="results.html">Report card</a>
+    </nav>
+    <a class="btn btn-ghost nav-cta" href="results.html">See a report card</a>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="sec" style="padding-top:var(--s7)">
+  <div class="wrap">
+    <div class="sec-hd mid rv">
+      <span class="kicker">Connect your agent</span>
+      <h2>Your agent keeps the wheel. We hand it the tools.</h2>
+      <p>ARE speaks <strong>MCP</strong> as a server. It offers your agent eleven
+        support-desk tools and a simulated company to use them on, then reads what your
+        agent did with them. You do not give us your model, your prompt or your API
+        key.<span data-tip-key="mcpWhat" data-tip-label="what MCP is"></span></p>
+    </div>
+
+    <div class="glass panel rv">
+      <div class="panel-hd"><span class="panel-t">how it fits together</span></div>
+      <pre class="flow" aria-label="Your agent connects to ARE over MCP; ARE serves tools and verifies the trace.">
+   ┌──────────────┐   asks for tools    ┌────────────────────────┐
+   │  YOUR AGENT  │ ──────────────────► │  ARE  (the MCP server) │
+   │              │                     │                        │
+   │  your model  │ ◄────────────────── │  11 simulated tools    │
+   │  your prompt │   tool results      │  1 fake company        │
+   │  your loop   │                     │  60 scenarios          │
+   └──────────────┘                     └───────────┬────────────┘
+                                                    │ records every call
+                                                    ▼
+                                          report card + trace
+</pre>
+      <p class="panel-ft">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 16v-4m0-4h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+        </svg>
+        <span>ARE is the server because it already owns the tools and the world. The
+        reverse — us calling your agent as though it were a tool — is not what the protocol
+        does.<span data-tip-key="mcpWhy" data-tip-label="why this direction"></span></span>
+      </p>
+    </div>
+
+    <div class="steps" style="margin-top:var(--s5)">
+      <div class="glass step rv">
+        <div class="step-n">1</div>
+        <h3>Pick a scenario<span data-tip-key="scenarioSet"
+          data-tip-label="what a scenario is"></span></h3>
+        <p>List the frozen set and choose one to start with. Each is a small situation with
+          its own starting world.</p>
+        <div class="tier-cmd">python -m are.cli gen --list</div>
+      </div>
+      <div class="glass step rv">
+        <div class="step-n">2</div>
+        <h3>Start ARE as a tool server</h3>
+        <p>It speaks JSON-RPC over stdin/stdout and waits. Point your MCP host at this
+          command exactly as you would any other MCP server.</p>
+        <div class="tier-cmd">python -m are.cli mcp-serve --scenario-id &lt;id&gt;</div>
+      </div>
+      <div class="glass step rv">
+        <div class="step-n">3</div>
+        <h3>Read the report card</h3>
+        <p>When your agent closes the connection, ARE writes the run and verifies it. Open
+          the result here.</p>
+        <div class="tier-cmd">python -m are.cli report runs/&lt;id&gt;</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="config">
+  <div class="wrap">
+    <div class="sec-hd mid rv">
+      <span class="kicker">Wiring it up</span>
+      <h2>If your host takes an MCP config block</h2>
+      <p>Claude Desktop, Claude Code and most MCP hosts accept a server definition like
+        this. Nothing here is ARE-specific except the command itself.</p>
+    </div>
+    <div class="glass panel rv">
+      <pre class="flow">{
+  "mcpServers": {
+    "are": {
+      "command": "python",
+      "args": ["-m", "are.cli", "mcp-serve", "--scenario-id", "&lt;id&gt;"]
+    }
+  }
+}</pre>
+      <p class="panel-ft">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 16v-4m0-4h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+        </svg>
+        <span>Run it from the repository root, so <code>python -m are.cli</code>
+        resolves.</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ ONE THING TO DO ═══════════════════════════════════════════════════ -->
+<section class="sec" id="submit">
+  <div class="wrap">
+    <div class="glass panel rv">
+      <div class="panel-hd">
+        <span class="panel-t">one thing your agent should do</span>
+        <span class="stamp off">recommended</span>
+      </div>
+      <div style="margin-top:var(--s4)">
+        <p style="font-size:14.4px;line-height:1.7">
+          Alongside the eleven tools, ARE offers one more: <code>submit_answer</code>. Have
+          your agent call it with its final reply before it
+          finishes.<span data-tip-key="mcpSubmit" data-tip-label="submit_answer"></span>
+        </p>
+        <p style="font-size:13.6px;line-height:1.7;color:var(--muted-fg);margin-top:var(--s3)">
+          Why it matters: when your agent runs its own loop, we see every tool call but not
+          what it <em>said</em>. Two of the checks — <b>did it refuse?</b> and <b>did it ask
+          for clarification?</b> — read the answer. Without <code>submit_answer</code> those
+          are reported <b>UNEVALUATED</b> rather than counted as passed. A check that could
+          not run is never scored as one that passed.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ LIMITS ════════════════════════════════════════════════════════════ -->
+<section class="sec" id="limits">
+  <div class="wrap">
+    <div class="sec-hd mid rv">
+      <span class="kicker">Before you read the numbers</span>
+      <h2>What this route measures less well</h2>
+      <p>Stated up front rather than found later. When your agent owns the loop, the harness
+        genuinely sees less than when it drives.</p>
+    </div>
+    <ul class="unmeasured rv" style="max-width:70ch;margin-inline:auto">
+      <li><b>The token budget cannot be enforced<span data-tip-key="mcpLimits"
+        data-tip-label="the limits over MCP"></span></b><span>Tool-call count and wall-clock
+        are still enforced, because every call comes through us. Token spend is between your
+        agent and its provider and we never see it.</span></li>
+      <li><b>The trace is tool-level only</b><span>We record what your agent did, not what
+        it was thinking. There is no view of its internal messages.</span></li>
+      <li><b>Answer-dependent checks need <code>submit_answer</code></b><span>Without it,
+        <code>must_refuse</code> and <code>must_request_clarification</code> report
+        UNEVALUATED — never satisfied.</span></li>
+      <li><b>These runs are labelled and kept separate<span data-tip-key="mcpProvenance"
+        data-tip-label="run provenance"></span></b><span>They carry <code>transport:
+        mcp</code> so they can never be silently pooled with runs where the harness measured
+        more.</span></li>
+    </ul>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="glass cta rv">
+    <span class="kicker">Next</span>
+    <h2>Read what came back</h2>
+    <p>The report card turns the run into four questions you can act on — starting with
+      whether your agent did anything it cannot undo.</p>
+    <div class="hero-cta" style="justify-content:center">
+      <a class="btn btn-primary" href="results.html">Open the report card</a>
+      <a class="btn btn-ghost" href="index.html#start">Back to getting started</a>
+    </div>
+  </div>
+</div>
+
+</main>
+<footer>
+  <div class="wrap">
+    <div class="ft-grid">
+      <a class="brand" href="index.html">
+        <svg class="brand-mk" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8.4"
+              stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+        <path d="M9 20.5 13.4 12l4.2 8.2 2.4-4.2H23" stroke="currentColor"
+              stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="13.4" cy="12" r="2.1" fill="currentColor"/>
+      </svg>
+        <span>Agent Reliability Engine</span>
+      </a>
+      <nav class="ft-links" aria-label="Footer">
+        <a href="index.html">Home</a><a href="connect.html">Connect your agent</a>
+        <a href="results.html">Report card</a>
+      </nav>
+    </div>
+    <p class="ft-note">
+      <strong>Stated plainly:</strong> the LLM judge is uncalibrated — no human-labelled
+      agreement study has been run, and judge-derived findings are advisory. Scenarios come
+      from 13 hand-authored templates, so coverage is bounded by template imagination rather
+      than by the real failure distribution. One domain; cross-domain transfer is
+      unvalidated. Absolute scores are not comparable across agents built on different
+      toolsets — only paired, same-suite comparisons are meaningful.
+    </p>
+    <p class="prov" id="prov">Data: not baked. Run <code>python landing/build.py</code>.</p>
+  </div>
+</footer>
+
+<div id="tip" role="tooltip" aria-hidden="true"></div>
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script src="assets/tips.js"></script>
+<script>
+(function () {
+  var A = window.ARE;
+  A.nav(); A.reveal(); A.provenance(A.$('prov')); A.tips();
+})();
+</script>

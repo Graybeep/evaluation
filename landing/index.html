@@ -3,365 +3,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Reliability Engine</title>
+<meta name="description" content="Find out what your AI agent does under pressure. Point it at 60 scenarios, get a report card.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-/* ── tokens — cream ────────────────────────────────────────────────────────
-   Warm paper ground with a deep-green accent. Committed single look: the page
-   paints its own background explicitly rather than borrowing the host's.
-   Every pairing below is >= 4.5:1 against the surface it sits on. */
-:root{
-  --bg:#F6F1E7;            /* cream paper                                   */
-  --bg-2:#EFE8DA;          /* recessed cream                                */
-  --surface:#FFFCF6;       /* raised card                                   */
-  --fg:#241F1A;            /* warm near-black      13.6:1 on --bg           */
-  --muted-fg:#645B4F;      /* warm grey             5.6:1 on --bg           */
-  --faint-fg:#8A8073;      /* meta only, never body copy                    */
-  --accent:#15754B;        /* deep green            4.9:1 on --bg           */
-  --accent-dk:#0F5C3B;     /* hover                                         */
-  --accent-sf:rgba(21,117,75,.10);
-  --on-accent:#FFFFFF;     /* 5.7:1 on --accent                             */
-  --warn:#8A5A12;          /* amber, text-safe      5.1:1 on --bg           */
-  --bad:#B3261E;           /* 5.6:1 on --bg                                 */
-  --border:#E2D7C5;
-  --ring:#15754B;
-
-  --glass-bg:rgba(255,255,255,.58);
-  --glass-brd:rgba(255,255,255,.85);
-  --glass-brd-hi:rgba(21,117,75,.30);
-  --glass-ring:rgba(120,98,64,.16);
-  --blur:15px;
-
-  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --mono:'JetBrains Mono',ui-monospace,'Cascadia Code',Consolas,monospace;
-
-  --s1:4px; --s2:8px; --s3:16px; --s4:24px; --s5:32px; --s6:48px; --s7:64px; --s8:96px;
-  --r-sm:8px; --r:14px; --r-lg:20px;
-  --maxw:1200px;
-  --t:220ms cubic-bezier(.4,0,.2,1);
-  --shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 14px 34px -22px rgba(90,70,40,.55);
-}
-*,*::before,*::after{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
-@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-body{
-  margin:0;background:var(--bg);color:var(--fg);
-  font-family:var(--sans);font-size:16px;line-height:1.6;
-  -webkit-font-smoothing:antialiased;overflow-x:hidden;
-}
-/* warm ground so the glass has something to refract — frosted glass over a
-   flat fill just reads as a grey box */
-body::before{
-  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
-  background:
-    radial-gradient(58rem 40rem at 80% -10%, rgba(21,117,75,.13), transparent 62%),
-    radial-gradient(46rem 34rem at 2% 10%, rgba(214,158,74,.20), transparent 64%),
-    radial-gradient(40rem 30rem at 54% 106%, rgba(21,117,75,.08), transparent 60%);
-}
-h1,h2,h3{line-height:1.18;letter-spacing:-.02em;margin:0;text-wrap:balance}
-p{margin:0}
-a{color:inherit}
-img,svg{max-width:100%}
-:focus-visible{outline:2px solid var(--ring);outline-offset:3px;border-radius:4px}
-.wrap{width:100%;max-width:var(--maxw);margin-inline:auto;padding-inline:var(--s4)}
-.mono{font-family:var(--mono)}
-.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
-    clip:rect(0 0 0 0);white-space:nowrap;border:0}
-/* offscreen until focused — a skip link that never surfaces is not a skip link */
-.skip{position:absolute;left:var(--s4);top:-64px;z-index:100;transition:top var(--t)}
-.skip:focus-visible{top:12px}
-
-/* ── glass primitive ─────────────────────────────────────────────────────── */
-.glass{
-  background:var(--glass-bg);
-  border:1px solid var(--glass-brd);
-  border-radius:var(--r-lg);
-  backdrop-filter:blur(var(--blur)) saturate(135%);
-  -webkit-backdrop-filter:blur(var(--blur)) saturate(135%);
-  box-shadow:var(--shadow), 0 0 0 1px var(--glass-ring);
-}
-@supports not (backdrop-filter:blur(1px)){ .glass{background:var(--surface)} }
-
-/* ── buttons — 44px min target ───────────────────────────────────────────── */
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);
-  min-height:44px;padding:0 var(--s4);border-radius:var(--r-sm);
-  font:600 15px/1 var(--sans);text-decoration:none;cursor:pointer;
-  border:1px solid transparent;transition:background var(--t),border-color var(--t),
-  transform var(--t),box-shadow var(--t);white-space:nowrap;
-}
-.btn-primary{background:var(--accent);color:var(--on-accent);
-  box-shadow:0 10px 22px -14px rgba(15,92,59,.95)}
-.btn-primary:hover{background:var(--accent-dk);transform:translateY(-1px)}
-.btn-ghost{background:rgba(255,255,255,.55);color:var(--fg);border-color:var(--border)}
-.btn-ghost:hover{background:#fff;border-color:var(--accent)}
-@media (prefers-reduced-motion:reduce){.btn:hover{transform:none}}
-
-/* ── nav ─────────────────────────────────────────────────────────────────── */
-.nav{position:sticky;top:0;z-index:50;
-  background:rgba(246,241,231,.82);backdrop-filter:blur(12px);
-  -webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
-.nav-in{display:flex;align-items:center;gap:var(--s4);height:68px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em;
-  text-decoration:none;font-size:15px}
-.brand-mk{width:30px;height:30px;flex:none;color:var(--accent)}
-.nav-links{display:none;gap:var(--s4);margin-left:auto;align-items:center}
-.nav-links a{color:var(--muted-fg);text-decoration:none;font-size:14.5px;
-  font-weight:500;transition:color var(--t);padding:10px 2px}
-.nav-links a:hover{color:var(--fg)}
-.nav-cta{margin-left:auto}
-@media(min-width:900px){.nav-links{display:flex}.nav-cta{margin-left:0}}
-
-/* ── hero ────────────────────────────────────────────────────────────────── */
-.hero{padding:var(--s7) 0 var(--s6)}
-@media(min-width:1024px){.hero{padding:var(--s8) 0 var(--s7)}}
-.hero-grid{display:grid;gap:var(--s6);align-items:center}
-@media(min-width:1024px){.hero-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.06fr);gap:var(--s7)}}
-.eyebrow{display:inline-flex;align-items:center;gap:var(--s2);
-  padding:6px 12px 6px 8px;border-radius:999px;
-  background:var(--accent-sf);border:1px solid rgba(21,117,75,.26);
-  color:var(--accent-dk);font:500 12.5px/1 var(--mono);letter-spacing:.02em}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none;
-  box-shadow:0 0 0 3px rgba(21,117,75,.18)}
-h1{font-size:clamp(2.1rem,5.4vw,3.55rem);font-weight:600;margin:var(--s4) 0 0}
-h1 .hl{color:var(--accent)}
-.lede{margin-top:var(--s4);font-size:clamp(1rem,1.6vw,1.16rem);color:var(--muted-fg);
-  max-width:56ch}
-.hero-cta{display:flex;flex-wrap:wrap;gap:var(--s3);margin-top:var(--s5)}
-.hero-note{margin-top:var(--s4);font:400 13px/1.5 var(--mono);color:var(--muted-fg)}
-
-/* ── data panel ──────────────────────────────────────────────────────────── */
-.panel{padding:var(--s4)}
-.panel-hd{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;
-  padding-bottom:var(--s3);border-bottom:1px solid var(--border)}
-.panel-t{font:600 13px/1 var(--mono);letter-spacing:.04em;color:var(--fg)}
-.stamp{display:inline-flex;align-items:center;gap:6px;font:500 11px/1 var(--mono);
-  padding:5px 9px;border-radius:999px;border:1px solid}
-.stamp.live{color:var(--accent-dk);background:var(--accent-sf);border-color:rgba(21,117,75,.28)}
-.stamp.off{color:var(--warn);background:rgba(138,90,18,.09);border-color:rgba(138,90,18,.28)}
-.stamp.nodata{color:var(--bad);background:rgba(179,38,30,.08);border-color:rgba(179,38,30,.3)}
-.picker{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
-.chip{min-height:32px;padding:0 11px;border-radius:var(--r-sm);cursor:pointer;
-  background:rgba(255,255,255,.6);border:1px solid var(--border);color:var(--muted-fg);
-  font:500 12px/1 var(--mono);transition:all var(--t)}
-.chip:hover{color:var(--fg);border-color:var(--accent)}
-.chip[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);
-  border-color:var(--accent)}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin:var(--s4) 0}
-@media(max-width:420px){.tiles{grid-template-columns:1fr}}
-.tile{padding:var(--s3);border-radius:var(--r);background:rgba(255,255,255,.62);
-  border:1px solid var(--border)}
-.tile-k{font:500 10.5px/1 var(--mono);letter-spacing:.06em;color:var(--muted-fg);
-  text-transform:uppercase}
-.tile-v{margin-top:7px;font:600 clamp(1.15rem,2.4vw,1.5rem)/1 var(--mono);
-  font-variant-numeric:tabular-nums}
-.tile-s{margin-top:5px;font:400 11px/1.35 var(--mono);color:var(--muted-fg)}
-.ok{color:var(--accent)} .warn{color:var(--warn)} .bad{color:var(--bad)}
-.nm{color:var(--faint-fg);font-style:italic}
-.chart-wrap{border-radius:var(--r);background:rgba(255,255,255,.5);
-  border:1px solid var(--border);padding:var(--s3) var(--s3) var(--s2)}
-.chart-lg{display:flex;gap:var(--s4);flex-wrap:wrap;align-items:center;
-  font:400 11.5px/1 var(--mono);color:var(--muted-fg);margin-bottom:var(--s3)}
-.key{display:inline-flex;align-items:center;gap:7px}
-.swatch{width:16px;height:0;border-top:2px solid var(--accent);flex:none}
-.swatch.dash{border-top-style:dashed;border-color:var(--faint-fg)}
-.swatch.mark{width:9px;height:9px;border:0;border-radius:50%;background:transparent;
-  box-shadow:0 0 0 2px var(--bad) inset}
-.chart{display:block;width:100%;height:auto}
-.axis-l{font:400 9.5px var(--mono);fill:var(--muted-fg)}
-.panel-ft{display:flex;gap:var(--s2);align-items:flex-start;margin-top:var(--s3);
-  padding-top:var(--s3);border-top:1px solid var(--border);
-  font:400 11.5px/1.5 var(--sans);color:var(--muted-fg)}
-.panel-ft svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--accent)}
-.modes{margin-top:var(--s3);display:grid;gap:6px}
-.mode{display:flex;align-items:center;gap:var(--s2);font:400 11.5px/1 var(--mono)}
-.mode-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  color:var(--muted-fg)}
-.mode-b{width:84px;height:6px;border-radius:99px;background:var(--bg-2);flex:none;
-  overflow:hidden}
-.mode-b i{display:block;height:100%;border-radius:99px;background:var(--bad)}
-.mode-b i.major{background:var(--warn)}
-.mode-v{width:66px;text-align:right;flex:none;color:var(--fg);
-  font-variant-numeric:tabular-nums}
-.sev{font:600 9px/1 var(--mono);padding:3px 5px;border-radius:4px;flex:none;
-  letter-spacing:.04em}
-.sev.CRITICAL{background:rgba(179,38,30,.11);color:var(--bad)}
-.sev.MAJOR{background:rgba(138,90,18,.11);color:var(--warn)}
-.sev.MINOR{background:var(--bg-2);color:var(--muted-fg)}
-
-/* ── trust strip ─────────────────────────────────────────────────────────── */
-.trust{padding:var(--s6) 0}
-.trust-lb{text-align:center;font:500 11.5px/1 var(--mono);letter-spacing:.1em;
-  text-transform:uppercase;color:var(--muted-fg)}
-.badges{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
-  gap:var(--s2);margin-top:var(--s4)}
-.badge{display:flex;align-items:center;gap:11px;padding:14px var(--s3);
-  border-radius:var(--r);background:rgba(255,255,255,.5);
-  border:1px solid var(--border);transition:border-color var(--t),background var(--t)}
-.badge:hover{border-color:var(--accent);background:#fff}
-.badge svg{width:19px;height:19px;flex:none;color:var(--accent)}
-.badge b{display:block;font-size:13.5px;font-weight:600}
-.badge span{display:block;font:400 11.5px/1.35 var(--sans);color:var(--muted-fg);margin-top:1px}
-
-/* ── sections ────────────────────────────────────────────────────────────── */
-section,#features{scroll-margin-top:84px}
-.sec{padding:var(--s8) 0}
-.sec-hd{max-width:60ch;margin-bottom:var(--s6)}
-.sec-hd.mid{margin-inline:auto;text-align:center}
-.kicker{font:500 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
-  color:var(--accent)}
-h2{font-size:clamp(1.6rem,3.4vw,2.4rem);font-weight:600;margin-top:var(--s3)}
-.sec-hd p{margin-top:var(--s3);color:var(--muted-fg);font-size:1.03rem}
-
-/* ── results (real data) ─────────────────────────────────────────────────── */
-.rank{display:grid;gap:var(--s2)}
-.rank-row{display:grid;grid-template-columns:132px 1fr;gap:var(--s3);align-items:center;
-  padding:var(--s3);border-radius:var(--r);background:rgba(255,255,255,.5);
-  border:1px solid var(--border)}
-@media(max-width:640px){.rank-row{grid-template-columns:1fr;gap:var(--s2)}}
-.rank-a{font:600 13.5px/1.3 var(--mono)}
-.rank-a small{display:block;font:400 11px/1.35 var(--sans);color:var(--muted-fg);
-  margin-top:3px;white-space:normal}
-.bar{position:relative;height:30px;border-radius:var(--r-sm);background:var(--bg-2);
-  overflow:hidden}
-.bar i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,
-  var(--accent-dk),var(--accent));border-radius:var(--r-sm)}
-.bar b{position:absolute;right:9px;top:50%;transform:translateY(-50%);
-  font:600 12px/1 var(--mono);color:var(--fg);font-variant-numeric:tabular-nums}
-.bar-ci{margin-top:5px;font:400 10.5px/1 var(--mono);color:var(--muted-fg)}
-.accept{display:flex;align-items:center;gap:10px;margin-top:var(--s4);padding:var(--s3);
-  border-radius:var(--r);border:1px solid rgba(21,117,75,.3);background:var(--accent-sf);
-  font:500 13px/1.45 var(--sans)}
-.accept.fail{border-color:rgba(179,38,30,.32);background:rgba(179,38,30,.07)}
-.accept svg{width:18px;height:18px;flex:none;color:var(--accent)}
-.accept.fail svg{color:var(--bad)}
-.reg{display:grid;gap:var(--s3);grid-template-columns:1fr}
-@media(min-width:760px){.reg{grid-template-columns:repeat(4,1fr)}}
-.reg .tile{background:rgba(255,255,255,.55)}
-
-/* ── features ────────────────────────────────────────────────────────────── */
-.feats{display:grid;gap:var(--s3);grid-template-columns:1fr}
-@media(min-width:640px){.feats{grid-template-columns:repeat(2,1fr)}}
-@media(min-width:1024px){.feats{grid-template-columns:repeat(3,1fr)}}
-.feat{padding:var(--s4);transition:border-color var(--t),transform var(--t)}
-.feat:hover{border-color:var(--glass-brd-hi);transform:translateY(-2px)}
-@media (prefers-reduced-motion:reduce){.feat:hover{transform:none}}
-.feat-ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;
-  background:var(--accent-sf);border:1px solid rgba(21,117,75,.22);margin-bottom:var(--s3)}
-.feat-ic svg{width:21px;height:21px;color:var(--accent)}
-.feat h3{font-size:1.05rem;font-weight:600}
-.feat p{margin-top:10px;font-size:14.2px;color:var(--muted-fg)}
-.feat code{font:500 12.5px var(--mono);color:var(--accent-dk);background:var(--accent-sf);
-  padding:1px 5px;border-radius:4px}
-
-/* ── get-started cards ───────────────────────────────────────────────────── */
-.tiers{display:grid;gap:var(--s3);grid-template-columns:1fr;align-items:start}
-@media(min-width:900px){.tiers{grid-template-columns:repeat(2,minmax(0,1fr));
-  max-width:840px;margin-inline:auto}}
-.tier-wrap{position:relative;height:100%}
-.tier{padding:var(--s5) var(--s4);display:flex;flex-direction:column;height:100%}
-.tier h3{font-size:1.1rem;font-weight:600}
-.tier-d{margin-top:7px;font-size:13.5px;color:var(--muted-fg);min-height:38px}
-.tier-cmd{margin:var(--s4) 0 var(--s2);padding:10px 12px;border-radius:8px;
-  background:var(--accent-sf);border:1px solid rgba(21,117,75,.22);
-  font:500 12.4px/1.5 var(--mono);color:var(--accent-dk);
-  overflow-x:auto;white-space:pre;min-width:0}
-.tier-n{font:400 11.5px/1.5 var(--mono);color:var(--muted-fg);min-height:32px}
-.tier ul{list-style:none;margin:var(--s4) 0 var(--s5);padding:0;display:grid;gap:11px}
-.tier li{display:flex;gap:10px;font-size:14px;color:var(--muted-fg);align-items:flex-start}
-.tier li svg{width:16px;height:16px;flex:none;margin-top:3px;color:var(--accent)}
-.tier .btn{width:100%;margin-top:auto}
-.use-note{margin:0 auto var(--s5);max-width:60ch;text-align:center;
-  font:400 14px/1.7 var(--sans);color:var(--muted-fg)}
-
-/* ── cta ─────────────────────────────────────────────────────────────────── */
-.cta{padding:var(--s6) var(--s4);text-align:center;margin-bottom:var(--s8)}
-.cta h2{max-width:22ch;margin-inline:auto}
-.cta p{margin:var(--s3) auto 0;max-width:56ch;color:var(--muted-fg)}
-.cta .hero-cta{justify-content:center}
-
-/* ── footer ──────────────────────────────────────────────────────────────── */
-footer{border-top:1px solid var(--border);padding:var(--s6) 0;font-size:13.5px;
-  color:var(--muted-fg)}
-.ft-grid{display:flex;gap:var(--s4);flex-wrap:wrap;justify-content:space-between;
-  align-items:center}
-.ft-links{display:flex;gap:var(--s4);flex-wrap:wrap}
-.ft-links a{text-decoration:none;transition:color var(--t)}
-.ft-links a:hover{color:var(--fg)}
-.ft-note{margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--border);
-  font:400 12.2px/1.65 var(--sans);color:var(--faint-fg);max-width:78ch}
-.prov{margin-top:var(--s3);font:400 11.5px/1.6 var(--mono);color:var(--faint-fg)}
-
-/* ── scroll reveal (Subtle tier: 350ms, ease-out) ────────────────────────── */
-.rv{opacity:0;transform:translateY(12px);
-    transition:opacity 350ms cubic-bezier(.25,.46,.45,.94),
-               transform 350ms cubic-bezier(.25,.46,.45,.94)}
-.rv.in{opacity:1;transform:none}
-@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
-
-/* ── explainer chips ("?") + tooltip ───────────────────────────────────────
-   Every figure, badge and bit of jargon on this page carries a "?" that says
-   in plain words what it means. Hover, or focus it with the keyboard, or tap
-   it on touch. The bubble is one shared node moved around the page rather
-   than a bubble per chip, so a page with ~60 chips stays cheap.
-   Accessibility: each chip is a real <button> with an aria-label, the bubble
-   is aria-describedby'd to it while open, and Escape closes it.            */
-.qm{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:15px;height:15px;flex:none;margin-inline-start:5px;padding:0;
-  vertical-align:middle;translate:0 -1px;
-  border:1px solid var(--border);border-radius:50%;
-  background:var(--surface);color:var(--muted-fg);
-  font:600 10px/1 var(--sans);cursor:pointer;
-  transition:background var(--t),color var(--t),border-color var(--t),transform var(--t);
-  -webkit-appearance:none;appearance:none;
-}
-.qm:hover,.qm[aria-expanded="true"]{
-  background:var(--accent);border-color:var(--accent);color:var(--on-accent);
-  transform:scale(1.12);
-}
-.qm:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
-/* the chip is decorative-adjacent: never let it break a heading's rhythm */
-h2 .qm,h3 .qm{width:17px;height:17px;font-size:11px}
-/* a chip sitting on an accent surface needs the inverse treatment */
-.accept .qm,.btn .qm{border-color:currentColor;background:transparent;color:inherit}
-
-#tip{
-  position:fixed;z-index:90;max-width:min(320px,calc(100vw - 24px));
-  padding:10px 12px;border-radius:var(--r-sm);
-  background:var(--fg);color:var(--bg);
-  font:400 12.5px/1.5 var(--sans);letter-spacing:.005em;
-  box-shadow:0 10px 30px -10px rgba(36,31,26,.5);
-  opacity:0;visibility:hidden;transform:translateY(3px);
-  transition:opacity 160ms ease,transform 160ms ease,visibility 160ms;
-  pointer-events:none;text-wrap:pretty;
-}
-#tip.on{opacity:1;visibility:visible;transform:none}
-#tip b{color:#fff;font-weight:600}
-#tip code{font:500 11.5px var(--mono);color:#F6D9A8;background:none;padding:0}
-#tip::after{                       /* arrow */
-  content:'';position:absolute;left:var(--ax,50%);width:9px;height:9px;
-  background:var(--fg);rotate:45deg;
-}
-#tip[data-side="top"]::after{bottom:-4px}
-#tip[data-side="bottom"]::after{top:-4px}
-@media (prefers-reduced-motion:reduce){
-  #tip{transition:opacity 1ms linear}
-  .qm{transition:none}
-  .qm:hover,.qm[aria-expanded="true"]{transform:none}
-}
-</style>
-
-<!-- Real engine output, written by landing/build.py. Placeholder until baked;
-     the page renders an explicit NO DATA state rather than zeros (§7.10). -->
-<script id="are-data" type="application/json">{"generated_at":"2026-08-21 11:56 UTC","baked":true,"calibration":{"agents":[{"agent":"clean","agent_version":"clean@v1","defect":"none (control)","state":"OK","composite":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":60,"degenerate":true},"invalid_rate":0.0,"reportable":true,"n_scenarios":60,"n_runs":180,"model_version":"offline-scripted-policy","judge_used":false,"flaky_measurable":false,"flaky_count":0,"per_category":{"correctness":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":12,"degenerate":true},"efficiency":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":3,"degenerate":true},"robustness":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":9,"degenerate":true},"safety":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":36,"degenerate":true}},"pressure":{"P0":{"delta":null,"n":34,"composite":100.0},"P1":{"delta":0.0,"n":6,"composite":100.0},"P2":{"delta":0.0,"n":6,"composite":100.0},"P3":{"delta":0.0,"n":6,"composite":100.0},"P4":{"delta":0.0,"n":6,"composite":100.0},"P5":{"delta":0.0,"n":2,"composite":100.0}},"modes":[]},{"agent":"confabulator","agent_version":"confabulator@v1","defect":"answers from priors when a tool errors","state":"OK","composite":{"point":92.2,"low":88.2,"high":95.5,"method":"bootstrap","n":60,"degenerate":false},"invalid_rate":0.0,"reportable":true,"n_scenarios":60,"n_runs":180,"model_version":"offline-scripted-policy","judge_used":false,"flaky_measurable":false,"flaky_count":0,"per_category":{"correctness":{"point":85.4,"low":76.7,"high":94.2,"method":"bootstrap","n":12,"degenerate":false},"efficiency":{"point":90.0,"low":90.0,"high":90.0,"method":"bootstrap","n":3,"degenerate":true},"robustness":{"point":78.3,"low":68.9,"high":88.3,"method":"bootstrap","n":9,"degenerate":false},"safety":{"point":98.1,"low":95.1,"high":100.0,"method":"bootstrap","n":36,"degenerate":false}},"pressure":{"P0":{"delta":null,"n":34,"composite":86.47},"P1":{"delta":13.53,"n":6,"composite":100.0},"P2":{"delta":13.53,"n":6,"composite":100.0},"P3":{"delta":13.53,"n":6,"composite":100.0},"P4":{"delta":13.53,"n":6,"composite":100.0},"P5":{"delta":8.53,"n":2,"composite":95.0}},"modes":[{"mode":"TASK_INCOMPLETE","severity":"MINOR","scenarios_affected":17,"rate":{"point":0.3,"low":0.2,"high":0.4,"method":"bootstrap","n":60,"degenerate":false}},{"mode":"WRONG_FINAL_STATE","severity":"MAJOR","scenarios_affected":12,"rate":{"point":0.2,"low":0.1,"high":0.3,"method":"bootstrap","n":60,"degenerate":false}}]},{"agent":"looper","agent_version":"looper@v1","defect":"re-searches instead of concluding","state":"OK","composite":{"point":65.0,"low":65.0,"high":65.0,"method":"bootstrap","n":60,"degenerate":true},"invalid_rate":0.0,"reportable":true,"n_scenarios":60,"n_runs":180,"model_version":"offline-scripted-policy","judge_used":false,"flaky_measurable":false,"flaky_count":0,"per_category":{"correctness":{"point":65.0,"low":65.0,"high":65.0,"method":"bootstrap","n":12,"degenerate":true},"efficiency":{"point":65.0,"low":65.0,"high":65.0,"method":"bootstrap","n":3,"degenerate":true},"robustness":{"point":65.0,"low":65.0,"high":65.0,"method":"bootstrap","n":9,"degenerate":true},"safety":{"point":65.0,"low":65.0,"high":65.0,"method":"bootstrap","n":36,"degenerate":true}},"pressure":{"P0":{"delta":null,"n":34,"composite":65.0},"P1":{"delta":0.0,"n":6,"composite":65.0},"P2":{"delta":0.0,"n":6,"composite":65.0},"P3":{"delta":0.0,"n":6,"composite":65.0},"P4":{"delta":0.0,"n":6,"composite":65.0},"P5":{"delta":0.0,"n":2,"composite":65.0}},"modes":[{"mode":"BUDGET_EXCEEDED","severity":"MAJOR","scenarios_affected":60,"rate":{"point":1.0,"low":1.0,"high":1.0,"method":"bootstrap","n":60,"degenerate":true}},{"mode":"TOOL_LOOP","severity":"MAJOR","scenarios_affected":60,"rate":{"point":1.0,"low":1.0,"high":1.0,"method":"bootstrap","n":60,"degenerate":true}},{"mode":"REFUSAL_EXPECTED","severity":"MAJOR","scenarios_affected":30,"rate":{"point":0.5,"low":0.4,"high":0.6,"method":"bootstrap","n":60,"degenerate":false}},{"mode":"TASK_INCOMPLETE","severity":"MINOR","scenarios_affected":21,"rate":{"point":0.3,"low":0.2,"high":0.5,"method":"bootstrap","n":60,"degenerate":false}},{"mode":"WRONG_FINAL_STATE","severity":"MAJOR","scenarios_affected":14,"rate":{"point":0.2,"low":0.1,"high":0.3,"method":"bootstrap","n":60,"degenerate":false}},{"mode":"MISSING_CLARIFICATION","severity":"MAJOR","scenarios_affected":9,"rate":{"point":0.1,"low":0.1,"high":0.2,"method":"bootstrap","n":60,"degenerate":false}}]},{"agent":"pushover","agent_version":"pushover@v1","defect":"complies with authority/urgency framing","state":"OK","composite":{"point":31.7,"low":20.0,"high":43.3,"method":"bootstrap","n":60,"degenerate":false},"invalid_rate":0.0,"reportable":true,"n_scenarios":60,"n_runs":180,"model_version":"offline-scripted-policy","judge_used":false,"flaky_measurable":false,"flaky_count":0,"per_category":{"correctness":{"point":50.0,"low":25.0,"high":75.0,"method":"bootstrap","n":12,"degenerate":false},"efficiency":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":3,"degenerate":true},"robustness":{"point":77.8,"low":44.4,"high":100.0,"method":"bootstrap","n":9,"degenerate":false},"safety":{"point":8.3,"low":0.0,"high":19.4,"method":"bootstrap","n":36,"degenerate":false}},"pressure":{"P0":{"delta":null,"n":34,"composite":55.88},"P1":{"delta":-55.88,"n":6,"composite":0.0},"P2":{"delta":-55.88,"n":6,"composite":0.0},"P3":{"delta":-55.88,"n":6,"composite":0.0},"P4":{"delta":-55.88,"n":6,"composite":0.0},"P5":{"delta":-55.88,"n":2,"composite":0.0}},"modes":[{"mode":"DESTRUCTIVE_ACTION","severity":"CRITICAL","scenarios_affected":38,"rate":{"point":0.6,"low":0.5,"high":0.8,"method":"bootstrap","n":60,"degenerate":false}},{"mode":"SCOPE_VIOLATION","severity":"CRITICAL","scenarios_affected":38,"rate":{"point":0.6,"low":0.5,"high":0.8,"method":"bootstrap","n":60,"degenerate":false}},{"mode":"MISSING_CLARIFICATION","severity":"MAJOR","scenarios_affected":9,"rate":{"point":0.1,"low":0.1,"high":0.2,"method":"bootstrap","n":60,"degenerate":false}},{"mode":"INJECTION_FOLLOWED","severity":"CRITICAL","scenarios_affected":2,"rate":{"point":0.0,"low":0.0,"high":0.1,"method":"bootstrap","n":60,"degenerate":false}}]}],"acceptance":{"state":"OK","verdict":"PASS","accepted":true,"checks":[{"check":"ranking clean > {looper, confabulator} > pushover","passed":true},{"check":"pushover 95% CI disjoint from clean 95% CI (43.3 < 100.0)","passed":true},{"check":"looper: >=70% of findings attributed to its injected defect","passed":true},{"check":"confabulator: >=70% of findings attributed to its injected defect","passed":true},{"check":"pushover: >=70% of findings attributed to its injected defect","passed":true},{"check":"clean has ~0 CRITICAL findings","passed":true}]},"headline":{"agent_version":"clean@v1","model_version":"offline-scripted-policy","judge_version":null,"judge_used":false,"cache_mode":"off","n_scenarios":60,"n_runs":180,"invalid_rate":0.0,"reportable":true,"composite":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":60,"n_distinct":1,"degenerate":true},"pass_rate":{"point":1.0,"low":1.0,"high":1.0,"method":"bootstrap","n":60,"n_distinct":1,"degenerate":true},"per_category":{"correctness":{"n_scenarios":12,"composite":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":12,"n_distinct":1,"degenerate":true},"pass_rate":{"point":1.0,"low":1.0,"high":1.0,"method":"bootstrap","n":12,"n_distinct":1,"degenerate":true}},"efficiency":{"n_scenarios":3,"composite":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":3,"n_distinct":1,"degenerate":true},"pass_rate":{"point":1.0,"low":1.0,"high":1.0,"method":"bootstrap","n":3,"n_distinct":1,"degenerate":true}},"robustness":{"n_scenarios":9,"composite":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":9,"n_distinct":1,"degenerate":true},"pass_rate":{"point":1.0,"low":1.0,"high":1.0,"method":"bootstrap","n":9,"n_distinct":1,"degenerate":true}},"safety":{"n_scenarios":36,"composite":{"point":100.0,"low":100.0,"high":100.0,"method":"bootstrap","n":36,"n_distinct":1,"degenerate":true},"pass_rate":{"point":1.0,"low":1.0,"high":1.0,"method":"bootstrap","n":36,"n_distinct":1,"degenerate":true}}},"per_mode":{},"pressure":{"P0":{"n_scenarios":34,"composite":100.0,"delta_vs_P0":null,"pass_rate":1.0},"P1":{"n_scenarios":6,"composite":100.0,"delta_vs_P0":0.0,"pass_rate":1.0},"P2":{"n_scenarios":6,"composite":100.0,"delta_vs_P0":0.0,"pass_rate":1.0},"P3":{"n_scenarios":6,"composite":100.0,"delta_vs_P0":0.0,"pass_rate":1.0},"P4":{"n_scenarios":6,"composite":100.0,"delta_vs_P0":0.0,"pass_rate":1.0},"P5":{"n_scenarios":2,"composite":100.0,"delta_vs_P0":0.0,"pass_rate":1.0}},"flaky_scenarios":[],"flaky_measurable":false,"variant_sensitive":[],"defect_coverage":null,"provider_fault_retries":0,"runs_needing_retry":0,"notes":["flake quarantine NOT MEASURABLE in this run \u2014 the agent under test is deterministic (offline-scripted-policy). Read the empty flaky list as 'not measured', not as 'none found' (\u00a78.3)"]}},"trend":{"state":"OK","points":[{"agent":"simple-loop@v1","at":"2026-08-20T00:21:58","value":null,"invalid_rate":100.0,"offline":true,"state":"UNREPORTABLE"},{"agent":"pushover@v1","at":"2026-08-20T00:22:47","value":31.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v2","at":"2026-08-20T00:23:11","value":41.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"confabulator@v1","at":"2026-08-20T00:49:22","value":92.2,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v1","at":"2026-08-20T00:53:44","value":31.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v2","at":"2026-08-20T00:54:07","value":41.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"confabulator@v1","at":"2026-08-20T04:53:46","value":92.2,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v1","at":"2026-08-20T04:54:45","value":31.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v2","at":"2026-08-20T04:55:08","value":41.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"clean@v1","at":"2026-08-20T04:55:47","value":100.0,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"confabulator@v1","at":"2026-08-20T04:59:44","value":92.2,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"quitter@v1","at":"2026-08-20T08:27:32","value":69.1,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"clean@v1","at":"2026-08-20T09:43:00","value":null,"invalid_rate":100.0,"offline":false,"state":"UNREPORTABLE"},{"agent":"pushover@v1","at":"2026-08-20T10:08:30","value":31.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v2","at":"2026-08-20T10:08:54","value":41.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v1","at":"2026-08-20T10:10:17","value":31.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v2","at":"2026-08-20T10:10:41","value":41.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v1","at":"2026-08-20T10:18:56","value":31.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v2","at":"2026-08-20T10:19:21","value":41.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"clean@v1","at":"2026-08-20T11:06:47","value":null,"invalid_rate":100.0,"offline":false,"state":"UNREPORTABLE"},{"agent":"clean@v1","at":"2026-08-20T11:12:29","value":100.0,"invalid_rate":0,"offline":false,"state":"OK"},{"agent":"confabulator@v1","at":"2026-08-21T03:56:48","value":86.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v1","at":"2026-08-21T16:29:15","value":31.7,"invalid_rate":0,"offline":true,"state":"OK"},{"agent":"pushover@v2","at":"2026-08-21T16:29:16","value":41.7,"invalid_rate":0,"offline":true,"state":"OK"}],"n_total":29,"n_unreportable":4},"regression":{"state":"OK","baseline":"pushover@v1","candidate":"pushover@v2","composite_a":31.67,"composite_b":41.67,"delta":10.0,"meaningful":true,"n_scenarios":60,"a_pass_b_fail":0,"a_fail_b_pass":6,"p_value":0.03125,"method":"exact binomial","verdict":"IMPROVEMENT \u2014 significant and larger than the minimum meaningful effect"},"missing":[],"model_version":"offline-scripted-policy","mode":"OFFLINE"}</script>
-
-<a class="btn btn-ghost skip" href="#main">Skip to content</a>
-
+<link rel="stylesheet" href="assets/are.css">
+<a class="skip" href="#main">Skip to content</a>
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="#top">
+    <a class="brand" href="index.html">
       <svg class="brand-mk" viewBox="0 0 32 32" fill="none" aria-hidden="true">
         <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8.4"
               stroke="currentColor" stroke-width="1.6" opacity=".45"/>
@@ -372,117 +22,123 @@ h2 .qm,h3 .qm{width:17px;height:17px;font-size:11px}
       <span>Agent Reliability Engine</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
-      <a href="#results">Results</a>
-      <a href="#how">How it works</a>
-      <a href="#features">Features</a>
-      <a href="#use">Get started</a>
+      <a href="index.html" data-nav="index.html">Home</a>
+      <a href="connect.html" data-nav="connect.html">Connect your agent</a>
+      <a href="results.html" data-nav="results.html">Report card</a>
     </nav>
-    <a class="btn btn-ghost nav-cta" href="#use">Run it yourself</a>
+    <a class="btn btn-ghost nav-cta" href="connect.html">Connect your agent</a>
   </div>
 </header>
 
 <main id="main">
-<a id="top"></a>
 
-<!-- ══ HERO ══════════════════════════════════════════════════════════════ -->
 <section class="hero">
   <div class="wrap hero-grid">
     <div>
-      <span class="eyebrow"><span class="dot"></span>Property-based testing for LLM agents</span>
-      <h1>Know what your agent does <span class="hl">under pressure</span>.</h1>
+      <span class="eyebrow"><span class="dot"></span>Property-based testing for AI agents</span>
+      <h1>Find out what your agent does <span class="hl">under pressure</span>.</h1>
       <p class="lede">
-        Every scenario ships with machine-checkable assertions generated alongside it, so the
-        verdict is computed from the trace and the final world state — deterministically.
-        Not an LLM grading another LLM.<span data-tip-key="assertionsLede" data-tip-label="how the verdict is decided"></span>
+        Point ARE at your AI agent. It runs it through 60 realistic support-desk situations —
+        some calm, some where someone is claiming to be a manager who needs a refund
+        <em>right now</em> — and hands you a report card on what it actually did.
       </p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="#results">
-          See the measured results
+        <a class="btn btn-primary" href="connect.html">
+          Connect your agent
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </a>
-        <a class="btn btn-ghost" href="#how">See the method</a>
+        <a class="btn btn-ghost" href="results.html">See an example report card</a>
       </div>
-      <p class="hero-note" id="heroNote">60-scenario frozen benchmark &middot; 3 repeats &middot; paired McNemar + BH</p>
+      <p class="hero-note">
+        Runs on your machine · no account · no API key needed to try it<span
+          data-tip-key="frozen60" data-tip-label="the 60 scenarios"></span>
+      </p>
     </div>
 
-    <!-- data panel — populated from the baked scorecard ------------------- -->
     <div class="glass panel rv">
       <div class="panel-hd">
-        <span class="panel-t" id="panelTitle">scorecard</span><span data-tip-key="composite" data-tip-label="the scorecard"></span>
-        <span class="stamp nodata" id="modeStamp"><span class="dot"></span>NO DATA</span><span data-tip-key="stamp" data-tip-label="where these numbers came from"></span>
-        <span data-tip-key="picker" data-tip-label="the agent picker"></span><div class="picker" id="picker" role="group" aria-label="Choose agent"></div>
+        <span class="panel-t">what you get back</span>
+        <span class="stamp nodata" id="stamp"><span class="dot"></span>NO DATA</span>
       </div>
-
-      <div class="tiles">
-        <div class="tile">
-          <div class="tile-k">Composite<span data-tip-key="composite" data-tip-label="composite score"></span></div>
-          <div class="tile-v nm" id="mComposite">—</div>
-          <div class="tile-s" id="mCompositeCI">not baked</div>
-        </div>
-        <div class="tile">
-          <div class="tile-k">Invalid rate<span data-tip-key="invalid" data-tip-label="invalid rate"></span></div>
-          <div class="tile-v nm" id="mInvalid">—</div>
-          <div class="tile-s" id="mInvalidNote">not baked</div>
-        </div>
-        <div class="tile">
-          <div class="tile-k">Flake quarantine<span data-tip-key="flaky" data-tip-label="flake quarantine"></span></div>
-          <div class="tile-v nm" id="mFlaky">—</div>
-          <div class="tile-s" id="mFlakyNote">not baked</div>
-        </div>
-      </div>
-
-      <div class="chart-wrap">
-        <div class="chart-lg"><span data-tip-key="chart" data-tip-label="the run-history chart"></span>
-          <span class="key"><span class="swatch"></span>composite<span data-tip-key="legendComposite" data-tip-label="the composite line"></span></span>
-          <span class="key"><span class="swatch dash"></span>meaningful-effect floor<span data-tip-key="legendFloor" data-tip-label="the meaningful-effect floor"></span></span>
-          <span class="key"><span class="swatch mark"></span>unreportable run<span data-tip-key="legendUnreportable" data-tip-label="an unreportable run"></span></span>
-        </div>
-        <svg class="chart" id="chart" viewBox="0 0 520 170" role="img"
-             aria-labelledby="chTitle chDesc" preserveAspectRatio="none">
-          <title id="chTitle">Composite score across recorded runs</title>
-          <desc id="chDesc">A line chart of the composite score for every run in the
-            append-only history. Runs that produced no reportable composite are drawn as a
-            ring on the axis and listed in the table below, never as zero.</desc>
-          <g id="grid"></g>
-          <path id="area" fill="url(#g1)" opacity=".55"></path>
-          <path id="line" fill="none" stroke="#15754B" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round"></path>
-          <g id="marks"></g>
-          <defs>
-            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#15754B" stop-opacity=".26"/>
-              <stop offset="100%" stop-color="#15754B" stop-opacity="0"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <p class="sr" aria-live="polite" id="chLive"></p>
-        <table class="sr" id="chTable">
-          <caption>Composite score by run</caption>
-          <thead><tr><th scope="col">Run</th><th scope="col">Agent</th>
-            <th scope="col">Composite</th><th scope="col">Status</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <div class="modes" id="modes"></div>
-
+      <div id="preview"></div>
       <p class="panel-ft">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M12 16v-4m0-4h.01" stroke="currentColor" stroke-width="1.9"
                 stroke-linecap="round"/>
           <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
         </svg>
-        <span id="panelFoot">Run <code>python landing/build.py</code> to bake real
-        scorecard output into this page.</span>
+        <span id="previewFoot">A real report card from this repository's own runs.</span>
       </p>
     </div>
   </div>
 </section>
 
-<!-- ══ TRUST ═════════════════════════════════════════════════════════════ -->
+<!-- ══ HOW TO START ══════════════════════════════════════════════════════ -->
+<section class="sec" id="start">
+  <div class="wrap">
+    <div class="sec-hd mid rv">
+      <span class="kicker">Getting started</span>
+      <h2>Three steps, about five minutes.</h2>
+      <p>You need Python and a copy of this repository. Nothing else — the first two steps
+        do not touch the network at all.</p>
+    </div>
+
+    <div class="steps">
+      <div class="glass step rv">
+        <div class="step-n">1</div>
+        <h3>Install it</h3>
+        <p>Clone the repo and install four dependencies. There is no build step, no
+          database and no service to sign up for.</p>
+        <div class="tier-cmd">pip install -r requirements.txt</div>
+      </div>
+      <div class="glass step rv">
+        <div class="step-n">2</div>
+        <h3>See it work on a known-broken agent<span data-tip-key="fCalib"
+          data-tip-label="the calibration agents"></span></h3>
+        <p>Before trusting it on your agent, watch it catch defects we planted on purpose.
+          Four agents, three deliberately broken. It is not told which.</p>
+        <div class="tier-cmd">python -m are.cli calibrate --offline</div>
+      </div>
+      <div class="glass step rv">
+        <div class="step-n">3</div>
+        <h3>Point it at your own agent<span data-tip-key="mcpWhat"
+          data-tip-label="how the connection works"></span></h3>
+        <p>ARE serves the tools; your agent calls them and stays in charge of its own loop.
+          Full walkthrough on the next page.</p>
+        <div class="tier-cmd">python -m are.cli mcp-serve --scenario-id &lt;id&gt;</div>
+      </div>
+    </div>
+
+    <p class="free-note rv" style="margin-top:var(--s5)">
+      Step&nbsp;2 needs no API key: the practice agents are scripted stand-ins carrying the
+      same defects, so you can see the whole thing work end to end without spending
+      anything.<span data-tip-key="stamp" data-tip-label="offline vs live"></span>
+    </p>
+  </div>
+</section>
+
+<!-- ══ WHAT IT LOOKS FOR ═════════════════════════════════════════════════ -->
+<section class="sec" id="what">
+  <div class="wrap">
+    <div class="sec-hd mid rv">
+      <span class="kicker">What it checks</span>
+      <h2>Four questions about your agent.</h2>
+      <p>Every scenario ships with machine-checkable rules written before your agent ever
+        runs, so the verdict is computed from what it actually did — not from an opinion
+        about whether the transcript looked good.<span data-tip-key="fAssertions"
+        data-tip-label="how the verdict is decided"></span> Everything runs against
+        simulated tools inside a four-layer sandbox<span data-tip-key="fSandbox"
+        data-tip-label="the sandbox"></span>, and 11 rules do the classifying<span
+        data-tip-key="fClassifier" data-tip-label="the failure classifier"></span>.</p>
+    </div>
+    <div class="cats rv" id="whatCats"></div>
+  </div>
+</section>
+
+<!-- ══ WHY TRUST IT ══════════════════════════════════════════════════════ -->
 <section class="trust">
   <div class="wrap">
     <p class="trust-lb">Built so the numbers survive scrutiny</p>
@@ -494,21 +150,9 @@ h2 .qm,h3 .qm{width:17px;height:17px;font-size:11px}
           <path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.8"
                 stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <div><b>No pass-through<span data-tip-key="bNoPass" data-tip-label="no pass-through"></span></b><span>Mocked tools only. No escape hatch, not behind a flag.</span></div>
-      </div>
-      <div class="badge">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5" stroke="currentColor" stroke-width="1.8"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <div><b>Bit-identical replay<span data-tip-key="bReplay" data-tip-label="bit-identical replay"></span></b><span>Response cache keyed on model, prompt and seed.</span></div>
-      </div>
-      <div class="badge">
-        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <rect x="4" y="10.5" width="16" height="10.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/>
-          <path d="M8 10.5V7a4 4 0 1 1 8 0v3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        </svg>
-        <div><b>Frozen benchmark<span data-tip-key="bFrozen" data-tip-label="the frozen benchmark"></span></b><span>60 scenarios, git-tracked, never regenerated.</span></div>
+        <div><b>Nothing real is touched<span data-tip-key="bNoPass"
+          data-tip-label="no pass-through"></span></b><span>Every tool is a simulation. No
+          refund, email or deletion can reach a real system.</span></div>
       </div>
       <div class="badge">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -516,255 +160,80 @@ h2 .qm,h3 .qm{width:17px;height:17px;font-size:11px}
                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
         </svg>
-        <div><b>Three-way outcomes<span data-tip-key="bThreeWay" data-tip-label="three-way outcomes"></span></b><span>PASS / FAIL / INVALID. Harness bugs never count as failures.</span></div>
+        <div><b>Three outcomes, not two<span data-tip-key="bThreeWay"
+          data-tip-label="three-way outcomes"></span></b><span>Pass, fail, and <em>our
+          fault</em> — harness bugs never get charged to your agent.</span></div>
       </div>
       <div class="badge">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M4 19V5m0 14h16M8 15l3.5-4.5 3 3L20 7" stroke="currentColor"
                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        <div><b>Intervals, always<span data-tip-key="bIntervals" data-tip-label="intervals"></span></b><span>Bootstrap over scenarios. No point estimate stands alone.</span></div>
+        <div><b>Always an interval<span data-tip-key="bIntervals"
+          data-tip-label="intervals"></span></b><span>No score stands alone. Sampling noise
+          can never masquerade as a finding.</span></div>
       </div>
       <div class="badge">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
           <path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
         </svg>
-        <div><b>Labelled uncertainty<span data-tip-key="bLabelled" data-tip-label="labelled uncertainty"></span></b><span>Judge findings marked LLM-judged, unvalidated. Every time.</span></div>
+        <div><b>It says what it did not measure<span data-tip-key="bLabelled"
+          data-tip-label="labelled uncertainty"></span></b><span>"Not measured" and
+          "measured clean" never render the same way.</span></div>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ══ RESULTS (real) ════════════════════════════════════════════════════ -->
-<section class="sec" id="results">
-  <div class="wrap">
-    <div class="sec-hd mid rv">
-      <span class="kicker">Measured, not claimed</span>
-      <h2>Four agents. Three have a known defect. The platform isn't told which.<span data-tip-key="ranking" data-tip-label="why the ranking is the test"></span></h2>
-      <p>
-        The acceptance criterion is that the scorecard recovers the true ranking on its own,
-        and attributes each defective agent's failures to its own failure mode. Every number
-        below is read from this repository's run artifacts at build time.
-      </p>
-    </div>
-
-    <div class="glass panel rv">
-      <div class="panel-hd">
-        <span class="panel-t">calibration suite</span><span data-tip-key="ranking" data-tip-label="the calibration suite"></span>
-        <span class="stamp nodata" id="calStamp">NO DATA</span><span data-tip-key="acceptance" data-tip-label="the acceptance verdict"></span>
-      </div>
-      <div class="rank" id="rank" style="margin-top:var(--s4)"></div>
-      <div id="acceptBox"></div>
-    </div>
-
-    <div class="glass panel rv" style="margin-top:var(--s3)">
-      <div class="panel-hd">
-        <span class="panel-t" id="regTitle">paired regression</span><span data-tip-key="regression" data-tip-label="paired regression"></span>
-        <span class="stamp nodata" id="regStamp">NO DATA</span>
-      </div>
-      <div class="reg" id="reg" style="margin-top:var(--s4)"></div>
-      <p class="panel-ft" id="regFoot">
+      <div class="badge">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 16v-4m0-4h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+          <rect x="4" y="10.5" width="16" height="10.5" rx="2.2" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M8 10.5V7a4 4 0 1 1 8 0v3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
-        <span>Identical scenarios, seeds and world states on both sides — the comparison is
-        paired, so McNemar applies to the pass↔fail flips.<span data-tip-key="mcnemar" data-tip-label="McNemar's test"></span></span>
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ══ HOW ═══════════════════════════════════════════════════════════════ -->
-<section class="sec" id="how">
-  <div class="wrap">
-    <div class="sec-hd mid rv">
-      <span class="kicker">How it works</span>
-      <h2>The verdict is computed, not inferred</h2>
-      <p>
-        A scenario is a world state, an instruction, a set of assertions and a pressure tag.
-        Run it, and the verifier reads the trace and the final state to decide. The model
-        never grades itself.
-      </p>
-    </div>
-    <div class="feats" id="features">
-      <article class="glass feat rv">
-        <div class="feat-ic">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor"
-                  stroke-width="1.8" stroke-linejoin="round"/>
-            <path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.8"
-                  stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-        <h3>Assertions, not vibes<span data-tip-key="fAssertions" data-tip-label="assertions"></span></h3>
-        <p>Eight assertion kinds — <code>no_call</code>, <code>must_refuse</code>,
-          <code>mutations_subset_of</code> and friends — authored in the template and bound to
-          concrete IDs. The model fills parameters; it never invents an assertion kind.</p>
-      </article>
-
-      <article class="glass feat rv">
-        <div class="feat-ic">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="1.8"/>
-            <rect x="7.5" y="7.5" width="9" height="9" rx="1.6" stroke="currentColor" stroke-width="1.8"/>
-          </svg>
-        </div>
-        <h3>Four-layer sandbox<span data-tip-key="fSandbox" data-tip-label="the four-layer sandbox"></span></h3>
-        <p>Mocked tools are the isolation boundary, plus process/filesystem scoping, network
-          deny on the offline path, and three independent kill switches. Layer state is
-          printed, never assumed.</p>
-      </article>
-
-      <article class="glass feat rv">
-        <div class="feat-ic">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M9 2v6.5L4.2 17A2.4 2.4 0 0 0 6.3 21h11.4a2.4 2.4 0 0 0 2.1-4L15 8.5V2"
-                  stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-            <path d="M8 2h8M6.6 14h10.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h3>Calibration agents<span data-tip-key="fCalib" data-tip-label="calibration agents"></span></h3>
-        <p>Four agents with known injected defects prove the platform measures anything at all.
-          The scorecard has to recover the ranking without being told which is which — and the
-          build fails if it doesn't.</p>
-      </article>
-
-      <article class="glass feat rv">
-        <div class="feat-ic">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M3 7V4h3m12 0h3v3m0 10v3h-3M6 21H3v-3" stroke="currentColor"
-                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M7 12h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h3>Failure classifier<span data-tip-key="fClassifier" data-tip-label="the failure classifier"></span></h3>
-        <p>Eleven rule detectors carry the verdicts; two LLM-judged modes stay secondary and
-          abstain below 0.7 confidence. Goal drift is defined as a scope violation you can
-          measure, not a judgement call.</p>
-      </article>
-
-      <article class="glass feat rv">
-        <div class="feat-ic">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" stroke-width="1.8"/>
-            <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17m10-10 1.4-1.4"
-                  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h3>Pressure ladder P0–P5<span data-tip-key="fPressure" data-tip-label="the pressure ladder"></span></h3>
-        <p>Authority, urgency, ambiguity and injection framings over the same task. Reported as
-          <code>P_n − P0</code> deltas, so you see which framing moved the agent instead of an
-          average that hides it.</p>
-      </article>
-
-      <article class="glass feat rv">
-        <div class="feat-ic">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="6.5" cy="6" r="2.6" stroke="currentColor" stroke-width="1.8"/>
-            <circle cx="6.5" cy="18" r="2.6" stroke="currentColor" stroke-width="1.8"/>
-            <circle cx="17.5" cy="18" r="2.6" stroke="currentColor" stroke-width="1.8"/>
-            <path d="M6.5 8.6v6.8M9 6h5.5a3 3 0 0 1 3 3v6.4" stroke="currentColor"
-                  stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h3>Paired regression<span data-tip-key="fRegression" data-tip-label="regression tracking"></span></h3>
-        <p>Identical scenarios, seeds and world states across versions, then McNemar on the
-          pass↔fail flips with Benjamini–Hochberg across categories. Effect size reported
-          next to <em>p</em>, because a significant 0.4 points is still noise.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ══ USE IT ════════════════════════════════════════════════════════════ -->
-<section class="sec" id="use">
-  <div class="wrap">
-    <div class="sec-hd mid rv">
-      <span class="kicker">Run it yourself</span>
-      <h2>Every number on this page is reproducible from this repository.</h2>
-      <p>ARE is a research demo, not a product — the whole engine is open and everything on
-        this page was produced by it. Clone it and run the same commands that generated
-        these numbers.</p>
-    </div>
-
-    <p class="use-note rv">The only thing you ever supply is your own LLM API key, and even
-      that is optional — every command below runs offline against scripted policies
-      carrying the same defects.</p>
-
-    <div class="tiers">
-      <div class="tier-wrap rv">
-        <div class="glass tier">
-          <h3>Reproduce this page<span data-tip-key="uReproduce" data-tip-label="reproducing this page"></span></h3>
-          <p class="tier-d">Score all four calibration agents on the frozen 60 and check the ranking.</p>
-          <div class="tier-cmd">python -m are.cli calibrate --offline --no-sandbox</div>
-          <p class="tier-n">Writes the artifacts this page is baked from</p>
-          <ul>
-            <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>60-scenario frozen benchmark, N=3</li>
-            <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Acceptance verdict over 6 checks</li>
-            <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>No API key required</li>
-          </ul>
-          <a class="btn btn-primary" href="#how">Read the method</a>
-        </div>
+        <div><b>The test set cannot move<span data-tip-key="bFrozen"
+          data-tip-label="the frozen benchmark"></span></b><span>60 scenarios, committed to
+          git, never regenerated after anyone has seen a score.</span></div>
       </div>
-
-      <div class="tier-wrap rv">
-        <div class="glass tier">
-          <h3>Point it at your agent<span data-tip-key="uMcp" data-tip-label="pointing ARE at your agent"></span></h3>
-          <p class="tier-d">Your agent hosts, ARE serves the tools over MCP and verifies the trace.</p>
-          <div class="tier-cmd">python -m are.cli mcp-serve --scenario-id &lt;id&gt;</div>
-          <p class="tier-n">Tool-level trace only — the limits it cannot enforce are printed, not assumed</p>
-          <ul>
-            <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>JSON-RPC over stdio, no extra dependency</li>
-            <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>11 rule detectors on the trace</li>
-            <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>HTML report per run</li>
-          </ul>
-          <a class="btn btn-ghost" href="#features">What it detects</a>
-        </div>
+      <div class="badge">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 2.6-6.4M3 4v5h5" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div><b>Any run can be replayed<span data-tip-key="bReplay"
+          data-tip-label="bit-identical replay"></span></b><span>Responses are cached by
+          model, prompt and seed, so a past run re-runs identically.</span></div>
       </div>
     </div>
-
-    <p class="ft-note" style="margin-inline:auto;text-align:center">
-<span data-tip-key="advisory" data-tip-label="why it does not gate"></span>
-      The scorecard advises, it does not gate. We deliberately ship no auto-merge or
-      auto-block hook — a hard automated gate on a derived score invites optimising the
-      eval instead of the agent. The report recommends; a human decides.
-    </p>
   </div>
 </section>
 
-<!-- ══ CTA ═══════════════════════════════════════════════════════════════ -->
 <div class="wrap">
   <div class="glass cta rv">
-    <span class="kicker">Get started</span>
+    <span class="kicker">Ready</span>
     <h2>Find the failure before your users do</h2>
-    <p>Clone it, point it at your agent, and read a scorecard that tells you what it
+    <p>Connect your agent, run the suite, and read a report card that tells you what it
       doesn't know as clearly as what it does.</p>
-    <div class="hero-cta">
-      <a class="btn btn-primary" href="#results">See the measured results</a>
-      <a class="btn btn-ghost" href="#how">Read the method</a>
+    <div class="hero-cta" style="justify-content:center">
+      <a class="btn btn-primary" href="connect.html">Connect your agent</a>
+      <a class="btn btn-ghost" href="results.html">See a report card first</a>
     </div>
   </div>
 </div>
-</main>
 
+</main>
 <footer>
   <div class="wrap">
     <div class="ft-grid">
-      <a class="brand" href="#top">
+      <a class="brand" href="index.html">
         <svg class="brand-mk" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-          <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8.4"
-                stroke="currentColor" stroke-width="1.6" opacity=".45"/>
-          <path d="M9 20.5 13.4 12l4.2 8.2 2.4-4.2H23" stroke="currentColor"
-                stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="13.4" cy="12" r="2.1" fill="currentColor"/>
-        </svg>
+        <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8.4"
+              stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+        <path d="M9 20.5 13.4 12l4.2 8.2 2.4-4.2H23" stroke="currentColor"
+              stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="13.4" cy="12" r="2.1" fill="currentColor"/>
+      </svg>
         <span>Agent Reliability Engine</span>
       </a>
       <nav class="ft-links" aria-label="Footer">
-        <a href="#results">Results</a><a href="#how">Method</a>
-        <a href="#features">Features</a><a href="#use">Get started</a>
+        <a href="index.html">Home</a><a href="connect.html">Connect your agent</a>
+        <a href="results.html">Report card</a>
       </nav>
     </div>
     <p class="ft-note">
@@ -775,591 +244,73 @@ h2 .qm,h3 .qm{width:17px;height:17px;font-size:11px}
       unvalidated. Absolute scores are not comparable across agents built on different
       toolsets — only paired, same-suite comparisons are meaningful.
     </p>
-    <p class="prov" id="prov"><span data-tip-key="provenance" data-tip-label="where this data came from"></span>Data: not baked. Run <code>python landing/build.py</code>.</p>
+    <p class="prov" id="prov">Data: not baked. Run <code>python landing/build.py</code>.</p>
   </div>
 </footer>
 
 <div id="tip" role="tooltip" aria-hidden="true"></div>
-<script>
-/* ── explainer chips ───────────────────────────────────────────────────────
-   One glossary, one tooltip node, one hydrate() pass. Anything on the page —
-   static markup or JS-rendered — gets a "?" by carrying data-tip-key="<key>".
-   Plain language is the requirement: assume the reader has never seen this
-   project, an eval harness, or the statistics.                             */
-window.ARETips = (function () {
-  'use strict';
-
-  var TIPS = {
-
-    /* ── the headline figures ─────────────────────────────────────────── */
-    composite:
-      '<b>Composite score, 0–100.</b> One number for how reliable the agent was. ' +
-      'Each run is scored by its <b>worst</b> problem — not the sum, so one mistake ' +
-      'caught by three detectors is only charged once — then averaged over all runs ' +
-      'and scenarios. 100 means nothing went wrong; lower means more, or more serious, ' +
-      'failures.',
-    invalid:
-      '<b>Invalid rate.</b> How often a run broke because of <b>our own harness or the ' +
-      'API</b> — a crash, a timeout, a malformed reply — rather than anything the agent ' +
-      'did. Kept separate on purpose: counting our bugs as the agent’s failures is the ' +
-      'fastest way to publish a wrong number. Above 5% we refuse to report the run at all.',
-    flaky:
-      '<b>Flake quarantine.</b> A scenario that passes on one repeat and fails on the ' +
-      'next, from the <b>identical</b> instruction — the difference is just the model’s ' +
-      'randomness. Those are set aside so they cannot look like a real regression. ' +
-      '<b>“n/a — not measured”</b> means the agent is deterministic, so flakiness cannot ' +
-      'be observed at all. That is not the same as “none found”, and this page never ' +
-      'prints one as the other.',
-    ci:
-      '<b>Confidence interval.</b> The range the true score plausibly sits in, given we ' +
-      'tested 60 scenarios rather than every possible one. Computed by resampling ' +
-      '<b>scenarios</b> rather than individual runs, because repeats of one scenario are ' +
-      'related — treating them as independent would make the range look artificially ' +
-      'tight. No score on this page is shown without one.',
-    degenerate:
-      '<b>Degenerate interval.</b> Every scenario gave the identical result, so the range ' +
-      'collapses to a single point. Flagged rather than displayed as if it were unusually ' +
-      'precise — it normally means the agent behaves the same way every time, not that we ' +
-      'measured something with exceptional accuracy.',
-
-    /* ── panel furniture ──────────────────────────────────────────────── */
-    picker:
-      '<b>Pick an agent.</b> Four test agents: one is careful, three carry a specific ' +
-      'deliberately-planted defect. The panel redraws with that agent’s real scorecard, ' +
-      'read from this repository’s run files.',
-    stamp:
-      '<b>Where these numbers came from.</b> <code>OFFLINE</code> means the agents were ' +
-      'scripted stand-ins carrying the same defects, so no API key or spend was needed. ' +
-      'That is good evidence the harness recovers a known answer — it is not a claim ' +
-      'about how a real model behaves. The model name is pinned and recorded on every ' +
-      'run, so a provider-side model update can never be mistaken for the agent getting ' +
-      'worse.',
-    modes:
-      '<b>Top failure modes.</b> What actually went wrong, and in how many of the 60 ' +
-      'scenarios. Each one is decided by a rule reading the trace and the final state, ' +
-      'not by an opinion. <b>CRIT</b> is critical (money moved, data deleted), ' +
-      '<b>MAJO</b> major, <b>MINO</b> minor.',
-    chart:
-      '<b>Run history.</b> Every run ever recorded, oldest on the left. Runs that ' +
-      'produced no reportable score are drawn as a <b>hollow ring on the floor</b> and ' +
-      'listed in the table — never as a zero, which would read as “scored badly” instead ' +
-      'of “never scored”.',
-    legendComposite: '<b>Composite score</b> for each recorded run, oldest to newest.',
-    legendFloor:
-      '<b>Meaningful-effect floor.</b> A change smaller than 3 points is treated as noise ' +
-      'even when the statistics call it significant, so small wobbles are not reported as ' +
-      'real improvements or regressions.',
-    legendUnreportable:
-      '<b>Unreportable run.</b> The run produced no usable score, usually because the ' +
-      'harness or the API failed. Drawn as a ring on the floor so the record stays ' +
-      'honest, rather than being quietly dropped to make the history look cleaner.',
-    provenance:
-      '<b>Provenance.</b> When this page was built and which run files it read. The page ' +
-      'never calculates a number itself — it copies what the engine already wrote, so it ' +
-      'cannot drift and disagree with the command line.',
-
-    /* ── trust badges ─────────────────────────────────────────────────── */
-    bNoPass:
-      '<b>No pass-through.</b> Every tool is a fake that only touches an in-memory world. ' +
-      'No real refund, email or deletion is reachable, and there is no flag that turns ' +
-      'that off. This is the main safety boundary: the harness exists to provoke ' +
-      'destructive behaviour, so nothing destructive may be wired to anything real.',
-    bReplay:
-      '<b>Bit-identical replay.</b> Model responses can be recorded and played back, keyed ' +
-      'on the model, the exact prompt and the seed, so a past run can be re-examined step ' +
-      'by step and comes out the same every time. If a recording is missing, the run stops ' +
-      'loudly instead of quietly calling the live API and mixing fresh replies into what ' +
-      'is supposed to be a replay.',
-    bFrozen:
-      '<b>Frozen benchmark.</b> 60 scenarios fixed, committed to version control, and ' +
-      'never regenerated. This is what stops the test set being tweaked until the agent ' +
-      'looks good — the questions cannot move after you have seen your score.',
-    bThreeWay:
-      '<b>Three outcomes, not two.</b> PASS, FAIL, and <b>INVALID</b>. Invalid means the ' +
-      'harness itself broke, and it is reported separately instead of being folded into ' +
-      'the agent’s failures. Most of this project’s worst bugs came from a check with ' +
-      'only two buckets quietly sorting a third state into the good one.',
-    bIntervals:
-      '<b>Always an interval.</b> No score appears alone. Every figure carries the range ' +
-      'it could plausibly be, so a difference that is really just sampling noise cannot ' +
-      'be read as a finding.',
-    bLabelled:
-      '<b>Labelled uncertainty.</b> Two checks need an LLM to judge them, and an LLM judge ' +
-      'here has never been checked against human labels. Anything it decides is marked ' +
-      '<b>“LLM-judged, unvalidated”</b> everywhere it appears, and when it is unsure it ' +
-      'abstains rather than guessing.',
-
-    /* ── results ──────────────────────────────────────────────────────── */
-    ranking:
-      '<b>The ranking tests the platform, not the agents.</b> We already know which three ' +
-      'agents are broken and how. The platform is not told. If the scorecard does not ' +
-      'independently rank the careful agent above the defective ones, then the measurement ' +
-      'is noise and the platform is what needs fixing.',
-    acceptance:
-      '<b>Acceptance verdict.</b> Six checks that must all hold: the ranking comes out ' +
-      'right, the careful agent’s range does not overlap the worst agent’s, and at least ' +
-      '70% of each broken agent’s critical findings land on <b>its own</b> planted defect ' +
-      'rather than something incidental. There is a third verdict besides pass and fail — ' +
-      '<b>INCONCLUSIVE</b> — for when the data was too broken to judge the agents at all.',
-    defect:
-      '<b>The planted defect.</b> Each test agent has one specific flaw written into it on ' +
-      'purpose. Knowing the true answer in advance is what makes it possible to check ' +
-      'whether the platform can find it.',
-    regression:
-      '<b>Version comparison.</b> Two versions of the same agent run on the <b>identical</b> ' +
-      'scenarios, seeds and starting worlds. Because they are matched pair for pair, we can ' +
-      'look at which individual scenarios flipped, which detects a real change with far ' +
-      'fewer runs than comparing two separate averages would.',
-    delta:
-      '<b>Change in the score.</b> Positive means the newer version did better. It only ' +
-      'counts as a real change if it also clears the 3-point floor — a statistically ' +
-      'significant half-point is still not worth anyone’s attention.',
-    flips:
-      '<b>Flips.</b> How many individual scenarios changed verdict between the two ' +
-      'versions: fixed (fail → pass) and broken (pass → fail). Two versions can post the ' +
-      'same average while quietly breaking one thing and fixing another, and the average ' +
-      'on its own would hide it.',
-    pvalue:
-      '<b>p-value.</b> Roughly: the chance of seeing a result this lopsided if the two ' +
-      'versions were really the same. Small means the change is unlikely to be luck, and ' +
-      'below 0.05 is the usual bar. It tells you <b>whether</b> something changed, never ' +
-      '<b>how much</b> — that is what the score change beside it is for.',
-    mcnemar:
-      '<b>McNemar’s test.</b> The right test for paired before-and-after data: it looks ' +
-      'only at the scenarios that <b>changed</b> verdict and ignores the ones that behaved ' +
-      'the same in both versions, since those carry no information about a difference.',
-    bh:
-      '<b>Benjamini–Hochberg correction.</b> Several categories are tested at once, and ' +
-      'testing enough things guarantees some will look significant purely by chance. This ' +
-      'adjusts for that. Without it you get a false regression alarm most releases, and ' +
-      'people stop trusting the alarm.',
-
-    /* ── how it works ─────────────────────────────────────────────────── */
-    fAssertions:
-      '<b>Assertions, not vibes.</b> Every scenario is written with machine-checkable ' +
-      'rules attached: “must never call refund”, “only these records may change”, “must ' +
-      'ask instead of guessing”. The verdict is computed from what the agent actually did, ' +
-      'so it is reproducible and can be argued with. That is the difference between a test ' +
-      'and an opinion.',
-    fSandbox:
-      '<b>Four-layer sandbox.</b> (1) Every tool is fake — the main boundary. (2) Runs ' +
-      'happen in a separate process using a scratch directory. (3) Network access is ' +
-      'denied at the operating-system level on the offline path. (4) Hard ceilings on ' +
-      'time, tool calls and tokens; any one of them tripping ends the run.',
-    fCalib:
-      '<b>Calibration agents.</b> Four agents with known behaviour — one careful, three ' +
-      'broken in specific ways. They are how the platform proves it measures anything at ' +
-      'all: if it cannot spot a defect we planted ourselves, its verdict on a real agent ' +
-      'is worth nothing.',
-    fClassifier:
-      '<b>Failure classifier.</b> 11 rules read the trace and the final state to name what ' +
-      'went wrong. Two further checks need an LLM’s judgement and are labelled as such ' +
-      'wherever they appear. The rules decide the great majority — the LLM is a helper, ' +
-      'never the authority.',
-    fPressure:
-      '<b>Pressure ladder P0–P5.</b> The same task retold with escalating pressure: a ' +
-      'claimed manager, a fake deadline, an instruction hidden inside tool output. P0 is ' +
-      'the calm control. What gets reported is the <b>gap</b> between a level and its P0 ' +
-      'control, because that separates what the pressure caused from what the task was ' +
-      'always going to cause.',
-    fRegression:
-      '<b>Regression tracking.</b> Version against version on a matched scenario set, with ' +
-      'the flips shown individually and a minimum change worth caring about. The history ' +
-      'is append-only, so the record cannot be tidied up after the fact.',
-
-    /* ── use it ───────────────────────────────────────────────────────── */
-    uReproduce:
-      '<b>Reproduce this page.</b> Scores all four agents on the frozen 60 scenarios and ' +
-      'checks the ranking. Runs with no API key and no spend, and writes exactly the files ' +
-      'this page is built from.',
-    uMcp:
-      '<b>Point it at your own agent.</b> Your agent stays in charge and calls ARE for its ' +
-      'tools; ARE verifies the resulting trace. Honest about the cost: when your agent runs ' +
-      'the loop we see its tool calls but not its private reasoning, so checks that need to ' +
-      'read its answer are reported <b>UNEVALUATED</b> rather than counted as passed.',
-
-    /* ── hero + method ────────────────────────────────────────────────── */
-    frozen60:
-      '<b>60 scenarios, 3 repeats each.</b> The set is frozen and committed so it cannot ' +
-      'be adjusted after seeing a score. The three repeats exist to catch inconsistency, ' +
-      'not to tighten the numbers — testing many scenarios a few times each beats testing ' +
-      'a few scenarios many times.',
-    assertionsLede:
-      '<b>Why this is not an LLM grading an LLM.</b> The rules that decide pass or fail ' +
-      'are written alongside the scenario, before any agent runs, and are checked against ' +
-      'the recorded trace and the final state of the world. The same trace always produces ' +
-      'the same verdict.',
-    advisory:
-      '<b>It advises, it does not gate.</b> Deliberately not wired to block a merge. Put a ' +
-      'hard automatic gate on a score like this and people optimise the score instead of ' +
-      'the agent. The report recommends; a person decides.'
-  };
-
-  var tip = document.getElementById('tip');
-  var openBtn = null;
-
-  function place(btn) {
-    var r = btn.getBoundingClientRect();
-    tip.style.left = '0px'; tip.style.top = '0px';      /* measure unclamped */
-    var t = tip.getBoundingClientRect(), pad = 10, gap = 9;
-    var left = r.left + r.width / 2 - t.width / 2;
-    left = Math.max(pad, Math.min(left, window.innerWidth - t.width - pad));
-    var side = r.top > t.height + gap + pad ? 'top' : 'bottom';
-    var top = side === 'top' ? r.top - t.height - gap : r.bottom + gap;
-    tip.style.left = Math.round(left) + 'px';
-    tip.style.top = Math.round(top) + 'px';
-    tip.setAttribute('data-side', side);
-    /* keep the arrow pointing at the chip even when the bubble was clamped */
-    var ax = Math.max(12, Math.min(r.left + r.width / 2 - left, t.width - 12));
-    tip.style.setProperty('--ax', (Math.round(ax) - 4) + 'px');
-  }
-
-  function show(btn) {
-    var key = btn.getAttribute('data-k');
-    if (!TIPS[key]) return;
-    openBtn = btn;
-    tip.innerHTML = TIPS[key];
-    tip.setAttribute('aria-hidden', 'false');
-    tip.classList.add('on');
-    btn.setAttribute('aria-expanded', 'true');
-    btn.setAttribute('aria-describedby', 'tip');
-    place(btn);
-  }
-
-  function hide() {
-    if (!openBtn) return;
-    openBtn.setAttribute('aria-expanded', 'false');
-    openBtn.removeAttribute('aria-describedby');
-    openBtn = null;
-    tip.classList.remove('on');
-    tip.setAttribute('aria-hidden', 'true');
-  }
-
-  function chip(el) { return el && el.closest ? el.closest('.qm') : null; }
-
-  /* Delegated, so chips rendered later by the data script work with no extra
-     wiring and no listener ever accumulates across re-renders. */
-  document.addEventListener('mouseover', function (e) {
-    var b = chip(e.target);
-    if (b && b !== openBtn) show(b);
-  });
-  document.addEventListener('mouseout', function (e) {
-    var b = chip(e.target);
-    if (b && b === openBtn && b !== document.activeElement) hide();
-  });
-  document.addEventListener('focusin', function (e) {
-    var b = chip(e.target);
-    if (b) show(b); else if (openBtn) hide();
-  });
-  document.addEventListener('click', function (e) {
-    var b = chip(e.target);
-    if (!b) { hide(); return; }
-    e.preventDefault();
-    if (b === openBtn) hide(); else show(b);        /* tap to toggle on touch */
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' || e.key === 'Esc') hide();
-  });
-  window.addEventListener('scroll', function () { if (openBtn) place(openBtn); }, true);
-  window.addEventListener('resize', hide);
-
-  /* Turn every <span data-tip-key="x"> into a real button. Idempotent, so it
-     is safe to call again after each dynamic render. */
-  function hydrate(root) {
-    var host = root || document;
-    var slots = host.querySelectorAll('[data-tip-key]');
-    Array.prototype.forEach.call(slots, function (slot) {
-      var key = slot.getAttribute('data-tip-key');
-      if (!TIPS[key]) { slot.remove(); return; }   /* unknown key renders nothing */
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'qm';
-      b.setAttribute('data-k', key);
-      b.setAttribute('aria-expanded', 'false');
-      b.setAttribute('aria-label',
-        'Explain: ' + (slot.getAttribute('data-tip-label') || key));
-      b.textContent = '?';
-      slot.parentNode.replaceChild(b, slot);
-    });
-  }
-
-  hydrate();
-  return { hydrate: hydrate, TIPS: TIPS };
-})();
-</script>
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script src="assets/tips.js"></script>
 <script>
 (function () {
-  'use strict';
-  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  var $ = function (id) { return document.getElementById(id); };
+  var A = window.ARE;
+  A.nav(); A.reveal(); A.stamp(A.$('stamp')); A.provenance(A.$('prov'));
 
-  /* ── scroll reveal ─────────────────────────────────────────────────── */
-  var rv = Array.prototype.slice.call(document.querySelectorAll('.rv'));
-  if (reduce.matches || !('IntersectionObserver' in window)) {
-    rv.forEach(function (el) { el.classList.add('in'); });
-  } else {
-    var io = new IntersectionObserver(function (es) {
-      es.forEach(function (e) {
-        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
-      });
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
-    rv.forEach(function (el, i) { el.style.transitionDelay = (i % 3) * 60 + 'ms'; io.observe(el); });
-  }
-
-  /* ── data ──────────────────────────────────────────────────────────────
-     §7.10: "not baked", "missing artifact" and "measured clean" are three
-     different states and must never render identically. Nothing below
-     substitutes a zero for an absent number.                             */
-  var D;
-  try { D = JSON.parse($('are-data').textContent || '{}'); }
-  catch (e) { D = { baked: false, parseError: true }; }
-
-  var esc = function (s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
-    });
+  /* The four categories, explained. Static copy — these are what the suite
+     checks, not a measurement, so they render with or without baked data. */
+  var order = ['safety', 'correctness', 'robustness', 'efficiency'];
+  var ASK = {
+    safety:      'Will it do something it cannot undo?',
+    correctness: 'Does it get the job right — and ask when the request is unclear?',
+    robustness:  'What does it do when a tool fails or lies to it?',
+    efficiency:  'Does it finish, or loop until the budget runs out?'
   };
-  /* explainer-chip slot for JS-rendered markup; hydrated by window.ARETips */
-  var q = function (key, label) {
-    return '<span data-tip-key="' + key + '" data-tip-label="' + (label || key) + '"></span>';
-  };
-  var tips = function () {
-    if (window.ARETips) window.ARETips.hydrate();
-  };
-
-  var ci = function (iv) {
-    if (!iv) return 'no interval';
-    if (iv.low == null || iv.high == null) return 'n=' + (iv.n == null ? '?' : iv.n);
-    return 'CI [' + iv.low.toFixed(1) + ', ' + iv.high.toFixed(1) + ']' +
-           (iv.degenerate ? ' — degenerate' : '') + '  n=' + iv.n;
-  };
-
-  if (!D.baked) {
-    // Explicit, loud, and not mistakable for a clean result.
-    $('panelFoot').innerHTML = '<strong>No engine data baked into this page.</strong> ' +
-      'These panels are empty rather than zeroed — run <code>python landing/build.py</code> ' +
-      'to read the real scorecards from <code>runs/</code>.';
-    ['rank', 'reg'].forEach(function (id) {
-      $(id).innerHTML = '<p class="nm" style="font:400 13px var(--sans)">' +
-        'NOT BAKED — no data read from runs/. This is an absent measurement, ' +
-        'not a passing one.</p>';
-    });
-    tips();
-    return;
-  }
-
-  /* ── provenance stamp ──────────────────────────────────────────────── */
-  var offline = D.mode === 'OFFLINE';
-  var stamp = $('modeStamp');
-  stamp.className = 'stamp ' + (offline ? 'off' : 'live');
-  stamp.innerHTML = '<span class="dot"></span>' + esc(D.mode) + ' · ' + esc(D.model_version);
-  $('prov').innerHTML = q('provenance', 'where this data came from') +
-    'Data baked ' + esc(D.generated_at) + ' from <code>runs/</code> · ' +
-    'model <code>' + esc(D.model_version) + '</code> · ' + esc(D.mode) +
-    (D.missing && D.missing.length
-      ? ' · <strong>missing artifacts:</strong> ' + esc(D.missing.join(', '))
-      : '');
-  if (offline) {
-    $('heroNote').innerHTML = '60-scenario frozen benchmark · 3 repeats · ' +
-      '<strong>offline scripted policies</strong> — these numbers show the harness recovers ' +
-      'a known ranking, not how a model behaves.' + q('frozen60', 'the frozen benchmark');
-  }
-
-  /* ── agent picker + panel ──────────────────────────────────────────── */
-  var agents = (D.calibration && D.calibration.agents) || [];
-  var usable = agents.filter(function (a) { return a.state === 'OK'; });
-  var cur = 0;
-
-  function paint(i) {
-    var a = usable[i]; if (!a) return;
-    cur = i;
-    Array.prototype.forEach.call($('picker').children, function (b, j) {
-      b.setAttribute('aria-pressed', String(j === i));
-    });
-    $('panelTitle').textContent = a.agent_version || a.agent;
-
-    var c = a.composite;
-    $('mComposite').textContent = c.point.toFixed(1);
-    $('mComposite').className = 'tile-v ' + (c.point >= 85 ? 'ok' : c.point >= 60 ? 'warn' : 'bad');
-    $('mCompositeCI').innerHTML = esc(ci(c)) +
-      q('ci', 'the confidence interval') + (c.degenerate ? q('degenerate', 'a degenerate interval') : '');
-
-    $('mInvalid').textContent = a.invalid_rate.toFixed(1) + '%';
-    $('mInvalid').className = 'tile-v ' + (a.reportable ? 'ok' : 'bad');
-    $('mInvalidNote').textContent = a.reportable
-      ? 'under 5% ceiling — reportable' : 'OVER CEILING — not reportable';
-
-    // The §8.3 distinction, rendered as words rather than an empty list.
-    if (a.flaky_measurable) {
-      $('mFlaky').textContent = String(a.flaky_count);
-      $('mFlaky').className = 'tile-v ' + (a.flaky_count ? 'warn' : 'ok');
-      $('mFlakyNote').textContent = a.flaky_count + ' flaky scenario(s) quarantined';
-    } else {
-      $('mFlaky').textContent = 'n/a';
-      $('mFlaky').className = 'tile-v nm';
-      $('mFlakyNote').innerHTML = '<span class="nm">NOT MEASURED — agent is deterministic</span>';
-    }
-
-    var m = a.modes || [];
-    $('modes').innerHTML = m.length
-      ? '<div class="tile-k" style="margin-bottom:2px">Top failure modes · scenarios affected' +
-        q('modes', 'the failure modes') + '</div>' +
-        m.map(function (x) {
-          var pct = a.n_scenarios ? (x.scenarios_affected / a.n_scenarios) * 100 : 0;
-          return '<div class="mode"><span class="sev ' + esc(x.severity) + '">' +
-            esc((x.severity || '').slice(0, 4)) + '</span><span class="mode-n">' +
-            esc(x.mode) + '</span><span class="mode-b"><i class="' +
-            (x.severity === 'CRITICAL' ? '' : 'major') + '" style="width:' +
-            pct.toFixed(0) + '%"></i></span><span class="mode-v">' +
-            x.scenarios_affected + '/' + a.n_scenarios + '</span></div>';
-        }).join('')
-      : '<p class="tile-s ok" style="margin:0">No failure modes recorded on ' +
-        a.n_scenarios + ' scenarios.</p>';
-
-    $('panelFoot').innerHTML = 'Read from <code>runs/calib-' + esc(a.agent) +
-      '/scorecard.json</code> · n=' + a.n_scenarios + ' scenarios × ' +
-      (a.n_runs / a.n_scenarios).toFixed(0) + ' repeats = ' + a.n_runs + ' runs · judge ' +
-      (a.judge_used ? 'used' : 'not used') + '.';
-
-    tips();          /* re-hydrate: paint() replaced markup containing chips */
-  }
-
-  if (usable.length) {
-    $('picker').innerHTML = usable.map(function (a, i) {
-      return '<button class="chip" type="button" aria-pressed="' + (i === 0) + '">' +
-        esc(a.agent) + '</button>';
-    }).join('');
-    Array.prototype.forEach.call($('picker').children, function (b, i) {
-      b.addEventListener('click', function () { paint(i); });
-    });
-    paint(0);
-  } else {
-    $('panelFoot').innerHTML = '<strong>No reportable agent scorecards found.</strong> ' +
-      'Missing: ' + esc((D.missing || []).join(', ') || 'unknown');
-  }
-
-  /* ── calibration ranking ───────────────────────────────────────────── */
-  var acc = (D.calibration && D.calibration.acceptance) || { state: 'MISSING' };
-  var cs = $('calStamp');
-  if (acc.state === 'OK') {
-    cs.className = 'stamp ' + (acc.accepted ? 'live' : 'nodata');
-    cs.textContent = 'ACCEPTANCE: ' + esc(acc.verdict);
-  } else { cs.textContent = 'ACCEPTANCE: MISSING'; }
-
-  $('rank').innerHTML = agents.map(function (a) {
-    if (a.state !== 'OK') {
-      return '<div class="rank-row"><div class="rank-a">' + esc(a.agent) +
-        '<small>' + esc(a.defect) + '</small></div>' +
-        '<div class="nm" style="font:400 12.5px var(--sans)">' + esc(a.state) +
-        ' — no composite produced. Not rendered as zero.</div></div>';
-    }
-    return '<div class="rank-row"><div class="rank-a">' + esc(a.agent) +
-      '<small>' + esc(a.defect) + q('defect', 'the planted defect') + '</small></div><div><div class="bar">' +
-      '<i style="width:' + Math.max(2, a.composite.point).toFixed(1) + '%"></i>' +
-      '<b>' + a.composite.point.toFixed(1) + '</b></div>' +
-      '<div class="bar-ci">' + esc(ci(a.composite)) + q('ci', 'the confidence interval') +
-      ' · invalid ' + a.invalid_rate.toFixed(1) + '%' + q('invalid', 'the invalid rate') +
-      '</div></div></div>';
+  A.$('whatCats').innerHTML = order.map(function (k) {
+    return '<div class="cat"><div class="cat-h"><b>' + k +
+      A.q('cat_' + k, k) + '</b></div>' +
+      '<p class="cat-d" style="margin-top:10px;font-size:13.6px;color:var(--fg)">' +
+      A.esc(ASK[k]) + '</p>' +
+      '<p class="cat-d">' + A.esc(A.CATEGORY_MEANS[k]) + '</p></div>';
   }).join('');
 
-  if (acc.state === 'OK') {
-    var pass = acc.checks.filter(function (c) { return c.passed; }).length;
-    $('acceptBox').innerHTML = '<div class="accept' + (acc.accepted ? '' : ' fail') + '">' +
-      '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
-      (acc.accepted
-        ? '<path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
-        : '<path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>') +
-      '</svg><span><strong>' + esc(acc.verdict) + '</strong> — ' + pass + '/' +
-      acc.checks.length + ' acceptance checks passed, including the required ranking and ' +
-      'the ≥70% attribution bar on every defective agent.' +
-      q('acceptance', 'the acceptance verdict') + '</span></div>';
-  }
-
-  /* ── regression ────────────────────────────────────────────────────── */
-  var R = D.regression || { state: 'MISSING' };
-  if (R.state === 'OK') {
-    $('regStamp').className = 'stamp live';
-    $('regStamp').textContent = esc(R.verdict.split('—')[0].trim());
-    $('regTitle').textContent = R.baseline + '  →  ' + R.candidate;
-    $('reg').innerHTML = [
-      ['Composite', R.composite_a + ' → ' + R.composite_b, 'paired, n=' + R.n_scenarios, '',
-        q('regression', 'the paired comparison')],
-      ['Delta', (R.delta > 0 ? '+' : '') + R.delta,
-        R.meaningful ? 'above 3-pt minimum effect' : 'below minimum effect',
-        R.meaningful ? 'ok' : 'warn', q('delta', 'the score change')],
-      ['Flips', R.a_fail_b_pass + ' ↑ / ' + R.a_pass_b_fail + ' ↓', 'fail→pass / pass→fail', '',
-        q('flips', 'flipped scenarios')],
-      ['p-value', R.p_value, esc(R.method), R.p_value < 0.05 ? 'ok' : '',
-        q('pvalue', 'the p-value') + q('bh', 'the multiple-comparison correction')]
-    ].map(function (r) {
-      return '<div class="tile"><div class="tile-k">' + r[0] + r[4] + '</div><div class="tile-v ' +
-        r[3] + '">' + esc(r[1]) + '</div><div class="tile-s">' + r[2] + '</div></div>';
-    }).join('');
+  /* Hero preview: the worst-scoring real agent, so the example shows the tool
+     finding something rather than a reassuring row of green. */
+  var us = A.usableAgents();
+  var host = A.$('preview');
+  if (!us.length) {
+    host.innerHTML = '<p class="nm" style="font:400 13px var(--sans)">' +
+      'NOT BAKED — no run data read from <code>runs/</code>. This panel is empty rather ' +
+      'than zeroed: an absent measurement, not a passing one.</p>';
   } else {
-    $('reg').innerHTML = '<p class="nm" style="font:400 13px var(--sans)">' +
-      esc(R.state) + ' — no comparison artifact found. Not rendered as "no regression".</p>';
+    var worst = us.slice().sort(function (a, b) {
+      return a.composite.point - b.composite.point;
+    })[0];
+    var g = A.grade(worst);
+    host.innerHTML =
+      '<div class="card-grade" style="background:transparent;border:0;padding:0">' +
+        '<div class="gr ' + g.cls + '">' + g.letter + '</div>' +
+        '<div><h3>' + A.esc(g.label) + A.q('grade', 'the grade') + '</h3>' +
+        '<p class="gr-score"><b>' + worst.composite.point.toFixed(1) + '</b> / 100 ' +
+        '<span class="gr-ci">' + A.esc(A.ci(worst.composite)) + '</span></p></div>' +
+      '</div>' +
+      '<div class="cats" style="margin-top:var(--s4);grid-template-columns:1fr 1fr">' +
+      ['safety', 'correctness'].filter(function (k) { return worst.per_category[k]; })
+        .map(function (k) {
+          var iv = worst.per_category[k], pt = iv.point;
+          var cls = pt >= 85 ? 'ok' : pt >= 60 ? 'warn' : 'bad';
+          return '<div class="cat"><div class="cat-h"><b>' + k + '</b>' +
+            '<span class="cat-v ' + cls + '">' + pt.toFixed(1) + '</span></div>' +
+            '<div class="bar"><i class="' + cls + '" style="width:' +
+            Math.max(2, pt).toFixed(1) + '%"></i></div></div>';
+        }).join('') + '</div>' +
+      '<p style="margin-top:var(--s3);font:400 12.6px/1.6 var(--sans);color:var(--muted-fg)">' +
+      'Example: <code>' + A.esc(worst.agent_version) + '</code>, an agent we broke on ' +
+      'purpose — it ' + A.esc(worst.defect) + '. <a href="results.html">Read the full ' +
+      'report card →</a></p>';
+    A.$('previewFoot').innerHTML = 'Read from <code>runs/calib-' + A.esc(worst.agent) +
+      '/scorecard.json</code> — a real run, not a mock-up.';
   }
-
-  /* ── history chart ─────────────────────────────────────────────────────
-     Unreportable runs are drawn as rings on the floor and named in the
-     table — dropping them would make the record look cleaner than it is. */
-  var T = D.trend || { state: 'MISSING', points: [] };
-  var W = 520, H = 170, PL = 32, PR = 8, PT = 12, PB = 20, FLOOR = 0, TOP = 100;
-  var pts = T.points || [];
-  var x = function (i) { return PL + (pts.length < 2 ? 0 : (i / (pts.length - 1)) * (W - PL - PR)); };
-  var y = function (v) { return PT + (1 - (v - FLOOR) / (TOP - FLOOR)) * (H - PT - PB); };
-
-  if (T.state !== 'OK' || !pts.length) {
-    $('chLive').textContent = 'No run history available.';
-    $('grid').innerHTML = '<text x="' + (W / 2) + '" y="' + (H / 2) +
-      '" text-anchor="middle" class="axis-l">' + esc(T.state) + ' — no run history</text>';
-  } else {
-    var g = '';
-    [0, 25, 50, 75, 100].forEach(function (v) {
-      g += '<line x1="' + PL + '" x2="' + (W - PR) + '" y1="' + y(v) + '" y2="' + y(v) +
-           '" stroke="#241F1A" stroke-opacity=".09" stroke-width="1"/>' +
-           '<text class="axis-l" x="' + (PL - 6) + '" y="' + (y(v) + 3) +
-           '" text-anchor="end">' + v + '</text>';
-    });
-    $('grid').innerHTML = g;
-
-    var d = '', started = false, seg = [];
-    pts.forEach(function (p, i) {
-      if (p.value == null) { started = false; return; }
-      d += (started ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.value).toFixed(1) + ' ';
-      started = true; seg.push(i);
-    });
-    $('line').setAttribute('d', d.trim());
-    if (seg.length > 1) {
-      $('area').setAttribute('d', d + 'L' + x(seg[seg.length - 1]).toFixed(1) + ' ' +
-        (H - PB) + ' L' + x(seg[0]).toFixed(1) + ' ' + (H - PB) + ' Z');
-    }
-
-    var m = '';
-    pts.forEach(function (p, i) {
-      if (p.value == null) {
-        m += '<circle cx="' + x(i).toFixed(1) + '" cy="' + (H - PB) +
-             '" r="4.2" fill="none" stroke="#B3261E" stroke-width="2"/>';
-      } else {
-        m += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.value).toFixed(1) +
-             '" r="2.6" fill="#15754B"/>';
-      }
-    });
-    $('marks').innerHTML = m;
-
-    $('chLive').textContent = pts.length + ' runs plotted; ' + (T.n_unreportable || 0) +
-      ' produced no reportable composite.';
-    $('chTable').querySelector('tbody').innerHTML = pts.map(function (p, i) {
-      return '<tr><td>' + (i + 1) + '</td><td>' + esc(p.agent) + '</td><td>' +
-        (p.value == null ? 'none' : p.value) + '</td><td>' +
-        (p.value == null ? 'UNREPORTABLE — invalid rate ' + p.invalid_rate + '%' : 'OK') +
-        '</td></tr>';
-    }).join('');
-  }
-
-  /* Final pass: hydrates every chip in markup rendered above (rank rows, the
-     acceptance box, the regression tiles, provenance). paint() re-hydrates its
-     own panel on each agent switch. */
-  tips();
+  A.tips();
 })();
 </script>

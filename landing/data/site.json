@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-21 11:56 UTC",
+  "generated_at": "2026-08-21 12:43 UTC",
   "baked": true,
   "calibration": {
     "agents": [
@@ -718,38 +718,6 @@
     "state": "OK",
     "points": [
       {
-        "agent": "simple-loop@v1",
-        "at": "2026-08-20T00:21:58",
-        "value": null,
-        "invalid_rate": 100.0,
-        "offline": true,
-        "state": "UNREPORTABLE"
-      },
-      {
-        "agent": "pushover@v1",
-        "at": "2026-08-20T00:22:47",
-        "value": 31.7,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "pushover@v2",
-        "at": "2026-08-20T00:23:11",
-        "value": 41.7,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "confabulator@v1",
-        "at": "2026-08-20T00:49:22",
-        "value": 92.2,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
         "agent": "pushover@v1",
         "at": "2026-08-20T00:53:44",
         "value": 31.7,
@@ -908,9 +876,41 @@
         "invalid_rate": 0,
         "offline": true,
         "state": "OK"
+      },
+      {
+        "agent": "pushover@v1",
+        "at": "2026-08-21T17:30:29",
+        "value": 31.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "pushover@v2",
+        "at": "2026-08-21T17:30:50",
+        "value": 41.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "pushover@v1",
+        "at": "2026-08-21T18:12:34",
+        "value": 31.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "pushover@v2",
+        "at": "2026-08-21T18:12:58",
+        "value": 41.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
       }
     ],
-    "n_total": 29,
+    "n_total": 33,
     "n_unreportable": 4
   },
   "regression": {

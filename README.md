@@ -44,9 +44,15 @@ No `ANTHROPIC_API_KEY`? Everything above still runs: the calibration agents fall
 **scripted policies** carrying the same defects. See *Offline mode* below for what that
 does and does not prove.
 
-Reports are HTML per run (`runs/<id>/report.html`), and `landing/` builds a static summary
-page from the same artifacts — both are **views over the engine, never a second
-implementation**, so neither can drift and disagree with the CLI about a verdict.
+Reports are HTML per run (`runs/<id>/report.html`), and `landing/` builds a small static
+site from the same artifacts — a homepage, an MCP walkthrough for pointing ARE at your own
+agent, and a **report card** that turns a scorecard into plain language. Both are **views
+over the engine, never a second implementation**, so neither can drift and disagree with
+the CLI about a verdict.
+
+```bash
+python landing/build.py && python -m http.server 8080 --directory landing
+```
 
 Containers (sandbox L3):
 

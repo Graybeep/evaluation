@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report card — Agent Reliability Engine</title>
+<meta name="description" content="How good is your agent? A plain-language summary of what the evaluation found.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/are.css">
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html">
+      <svg class="brand-mk" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8.4"
+              stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+        <path d="M9 20.5 13.4 12l4.2 8.2 2.4-4.2H23" stroke="currentColor"
+              stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="13.4" cy="12" r="2.1" fill="currentColor"/>
+      </svg>
+      <span>Agent Reliability Engine</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="index.html" data-nav="index.html">Home</a>
+      <a href="connect.html" data-nav="connect.html">Connect your agent</a>
+      <a href="results.html" data-nav="results.html">Report card</a>
+    </nav>
+    <a class="btn btn-ghost nav-cta" href="connect.html">Connect your agent</a>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="sec" style="padding-top:var(--s7)">
+  <div class="wrap">
+    <div class="sec-hd mid rv">
+      <span class="kicker">The result</span>
+      <h2>How good is this agent?</h2>
+      <p>One card, read top to bottom: whether the run counts at all, whether it did
+        anything irreversible, where it is strong and weak, whether pressure changes it,
+        what went wrong in plain words — and what none of this measured.</p>
+    </div>
+
+    <div class="pickbar rv">
+      <span class="lbl">showing<span data-tip-key="picker"
+        data-tip-label="the agent picker"></span></span>
+      <div class="picker" id="picker" role="group" aria-label="Choose an agent"></div>
+      <span class="stamp nodata" id="stamp" style="margin-left:auto"></span>
+    </div>
+
+    <div class="glass panel rv" id="card"></div>
+  </div>
+</section>
+
+<!-- ══ CAN YOU TRUST THE CARD ════════════════════════════════════════════ -->
+<section class="sec" id="trust">
+  <div class="wrap">
+    <div class="sec-hd mid rv">
+      <span class="kicker">Before you act on it</span>
+      <h2>Why believe this card?</h2>
+      <p>A grading tool is only worth as much as its own track record. Two checks are run
+        on the platform itself, and both are published here whether they pass or
+        not.<span data-tip-key="ranking" data-tip-label="what the ranking proves"></span></p>
+    </div>
+
+    <div class="glass panel rv">
+      <div class="panel-hd">
+        <span class="panel-t">1 · can it find a defect it was not told about?</span>
+        <span class="stamp nodata" id="accStamp">NO DATA</span>
+      </div>
+      <div id="acc"></div>
+    </div>
+
+    <div class="glass panel rv" style="margin-top:var(--s3)">
+      <div class="panel-hd">
+        <span class="panel-t" id="regTitle">2 · can it tell a real fix from noise?</span>
+        <span class="stamp nodata" id="regStamp">NO DATA</span>
+      </div>
+      <div id="reg"></div>
+      <p class="panel-ft">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 16v-4m0-4h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/>
+        </svg>
+        <span>Both versions saw identical scenarios, seeds and starting worlds, so the
+        comparison is paired and we can look at which individual scenarios
+        flipped.<span data-tip-key="mcnemar" data-tip-label="McNemar's test"></span><span
+        data-tip-key="fRegression" data-tip-label="regression tracking"></span></span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ YOUR OWN RUN ══════════════════════════════════════════════════════ -->
+<section class="sec" id="yours">
+  <div class="wrap" style="max-width:820px">
+    <div class="sec-hd mid rv">
+      <span class="kicker">Your own agent</span>
+      <h2>Already ran it? Read your own result here.</h2>
+      <p>After a run, ARE writes <code>runs/&lt;id&gt;/scorecard.json</code>. Drop that file
+        in and this page renders it exactly as above.<span data-tip-key="uploadRun"
+        data-tip-label="how the file is handled"></span></p>
+    </div>
+    <div class="drop rv" id="drop">
+      <h3>Drop <code>scorecard.json</code> here</h3>
+      <p>Read in your browser. Nothing is uploaded — there is no server behind this page.</p>
+      <label class="btn btn-ghost" for="file" tabindex="0" role="button">Choose file
+        <input type="file" id="file" accept="application/json,.json"></label>
+      <p class="drop-err" id="err" hidden></p>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer>
+  <div class="wrap">
+    <div class="ft-grid">
+      <a class="brand" href="index.html">
+        <svg class="brand-mk" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8.4"
+              stroke="currentColor" stroke-width="1.6" opacity=".45"/>
+        <path d="M9 20.5 13.4 12l4.2 8.2 2.4-4.2H23" stroke="currentColor"
+              stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="13.4" cy="12" r="2.1" fill="currentColor"/>
+      </svg>
+        <span>Agent Reliability Engine</span>
+      </a>
+      <nav class="ft-links" aria-label="Footer">
+        <a href="index.html">Home</a><a href="connect.html">Connect your agent</a>
+        <a href="results.html">Report card</a>
+      </nav>
+    </div>
+    <p class="ft-note">
+      <strong>Stated plainly:</strong> the LLM judge is uncalibrated — no human-labelled
+      agreement study has been run, and judge-derived findings are advisory. Scenarios come
+      from 13 hand-authored templates, so coverage is bounded by template imagination rather
+      than by the real failure distribution. One domain; cross-domain transfer is
+      unvalidated. Absolute scores are not comparable across agents built on different
+      toolsets — only paired, same-suite comparisons are meaningful.
+    </p>
+    <p class="prov" id="prov">Data: not baked. Run <code>python landing/build.py</code>.</p>
+  </div>
+</footer>
+
+<div id="tip" role="tooltip" aria-hidden="true"></div>
+<script src="assets/data.js"></script>
+<script src="assets/common.js"></script>
+<script src="assets/tips.js"></script>
+<script src="assets/report.js"></script>
+<script>
+(function () {
+  var A = window.ARE, R = window.AREReport;
+  A.nav(); A.reveal(); A.stamp(A.$('stamp')); A.provenance(A.$('prov'));
+
+  var us = A.usableAgents(), card = A.$('card');
+
+  function show(i) {
+    [].forEach.call(A.$('picker').children, function (b, j) {
+      b.setAttribute('aria-pressed', String(j === i));
+    });
+    R.render(us[i], card, {
+      source: A.data.mode + ' · ' + A.data.model_version,
+      sourceCls: A.data.mode === 'OFFLINE' ? 'off' : 'live'
+    });
+  }
+
+  if (!us.length) {
+    A.$('picker').innerHTML = '';
+    card.innerHTML = '<p class="nm" style="font:400 13.5px/1.7 var(--sans)">' +
+      '<b>NOT BAKED — no run data.</b> This card is empty rather than zeroed: an absent ' +
+      'measurement, not a passing one. Run <code>python -m are.cli calibrate --offline</code> ' +
+      'then <code>python landing/build.py</code>, or drop your own ' +
+      '<code>scorecard.json</code> below.</p>';
+  } else {
+    A.$('picker').innerHTML = us.map(function (a, i) {
+      return '<button class="chip" type="button" aria-pressed="' + (i === 0) + '">' +
+        A.esc(a.agent) + '</button>';
+    }).join('');
+    [].forEach.call(A.$('picker').children, function (b, i) {
+      b.addEventListener('click', function () { show(i); });
+    });
+    /* Default to the WORST agent: a landing example that opens on a perfect
+       score teaches nothing about what the tool is for. */
+    var worstIdx = 0;
+    us.forEach(function (a, i) {
+      if (a.composite.point < us[worstIdx].composite.point) worstIdx = i;
+    });
+    show(worstIdx);
+  }
+
+  /* ── read a local scorecard.json ─────────────────────────────────────── */
+  var drop = A.$('drop'), err = A.$('err');
+
+  function fail(msg) {
+    err.hidden = false;
+    err.textContent = msg;
+  }
+
+  function accept(text, name) {
+    var sc;
+    try { sc = JSON.parse(text); }
+    catch (e) { return fail('That file is not valid JSON.'); }
+    if (!sc || typeof sc !== 'object' || !('composite' in sc) || !('invalid_rate' in sc)) {
+      return fail('That does not look like a scorecard. Expected ' +
+        'runs/<id>/scorecard.json, which has "composite" and "invalid_rate" at the top ' +
+        'level.');
+    }
+    err.hidden = true;
+    var a = R.normalise(sc, name);
+    R.render(a, card, { source: 'YOUR RUN · ' + (a.model_version || 'unknown'),
+                        sourceCls: 'live' });
+    [].forEach.call(A.$('picker').children, function (b) {
+      b.setAttribute('aria-pressed', 'false');
+    });
+    card.scrollIntoView({ block: 'start' });
+  }
+
+  function read(file) {
+    if (!file) return;
+    var fr = new FileReader();
+    fr.onerror = function () { fail('Could not read that file.'); };
+    fr.onload = function () { accept(String(fr.result), file.name); };
+    fr.readAsText(file);
+  }
+
+  A.$('file').addEventListener('change', function (e) { read(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault(); drop.classList.add('over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) {
+      e.preventDefault(); drop.classList.remove('over');
+    });
+  });
+  drop.addEventListener('drop', function (e) {
+    read(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]);
+  });
+  /* the <label> is the control; make it keyboard-operable like a button */
+  document.querySelector('label[for="file"]').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); A.$('file').click(); }
+  });
+
+  /* ── 1. acceptance: does the platform recover a ranking it was not told? ── */
+  var acc = (A.data.calibration && A.data.calibration.acceptance) || { state: 'MISSING' };
+  if (acc.state === 'OK') {
+    var st = A.$('accStamp');
+    st.className = 'stamp ' + (acc.accepted ? 'live' : 'nodata');
+    st.textContent = acc.verdict;
+    var passed = acc.checks.filter(function (c) { return c.passed; }).length;
+    A.$('acc').innerHTML =
+      '<p style="font-size:13.8px;line-height:1.7;margin-bottom:var(--s3)">' +
+      'Four agents were scored, three of them broken in ways we chose in advance. The ' +
+      'platform is not told which. It has to recover the right order on its own, and pin ' +
+      'the failures of each broken agent on <b>its own</b> defect rather than on ' +
+      'something incidental.<span data-tip-key="defect" data-tip-label="the planted defects"></span>' +
+      '</p>' +
+      '<div class="accept' + (acc.accepted ? '' : ' fail') + '">' +
+      '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+      (acc.accepted
+        ? '<path d="m5 13 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+        : '<path d="M12 8v5m0 3h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>') +
+      '</svg><span><strong>' + A.esc(acc.verdict) + '</strong> — ' + passed + ' of ' +
+      acc.checks.length + ' checks hold' +
+      A.q('acceptance', 'the acceptance checks') + '</span></div>' +
+      '<ul class="unmeasured" style="margin-top:var(--s3)">' + acc.checks.map(function (c) {
+        return '<li style="border-style:solid;background:var(--bg-2)"><b>' +
+          (c.passed ? '✓ ' : '✕ ') + A.esc(c.check) + '</b></li>';
+      }).join('') + '</ul>';
+  } else {
+    A.$('acc').innerHTML = '<p class="nm" style="font:400 13px var(--sans)">' +
+      'MISSING — no acceptance artifact. Not rendered as "passed".</p>';
+  }
+
+  /* ── 2. regression: a known partial fix, measured ────────────────────── */
+  var R2 = A.data.regression || { state: 'MISSING' };
+  if (R2.state === 'OK') {
+    A.$('regStamp').className = 'stamp live';
+    A.$('regStamp').textContent = R2.verdict.split('—')[0].trim();
+    A.$('regTitle').textContent = '2 · ' + R2.baseline + ' → ' + R2.candidate;
+    A.$('reg').innerHTML =
+      '<p style="font-size:13.8px;line-height:1.7;margin-bottom:var(--s3)">' +
+      'One agent was partially repaired — it now resists a claimed manager, but still ' +
+      'folds under a deadline. A useful tool has to see that as a real improvement and ' +
+      'not as noise.<span data-tip-key="regression" data-tip-label="paired comparison">' +
+      '</span></p>' +
+      '<div class="cats" style="grid-template-columns:repeat(2,minmax(0,1fr))">' +
+      [['Score', R2.composite_a + ' → ' + R2.composite_b, 'paired, n=' + R2.n_scenarios,
+        A.q('delta', 'the score change')],
+       ['Change', (R2.delta > 0 ? '+' : '') + R2.delta,
+        R2.meaningful ? 'clears the 3-point floor' : 'below the floor — treated as noise',
+        A.q('delta', 'the minimum effect')],
+       ['Scenarios fixed', R2.a_fail_b_pass + ' fixed / ' + R2.a_pass_b_fail + ' broken',
+        'individual flips, not an average', A.q('flips', 'flipped scenarios')],
+       ['Could this be luck?', 'p = ' + R2.p_value, R2.method,
+        A.q('pvalue', 'the p-value') + A.q('bh', 'testing many things at once')]
+      ].map(function (r) {
+        return '<div class="cat"><div class="cat-h"><b>' + r[0] + r[3] + '</b></div>' +
+          '<p style="margin-top:8px;font:600 15px var(--mono);color:var(--fg)">' +
+          A.esc(r[1]) + '</p><p class="cat-ci">' + A.esc(r[2]) + '</p></div>';
+      }).join('') + '</div>';
+  } else {
+    A.$('reg').innerHTML = '<p class="nm" style="font:400 13px var(--sans)">' +
+      'MISSING — no comparison artifact. Not rendered as "no regression".</p>';
+  }
+
+  A.tips();
+})();
+</script>
