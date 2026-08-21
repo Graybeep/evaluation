@@ -44,23 +44,9 @@ No `ANTHROPIC_API_KEY`? Everything above still runs: the calibration agents fall
 **scripted policies** carrying the same defects. See *Offline mode* below for what that
 does and does not prove.
 
-Interactive console:
-
-```bash
-streamlit run app.py
-```
-
-A **view over the engine, not a second implementation** — every number it shows comes from
-the same `verify` / `compute` / `regression` code the CLI uses, so the UI cannot drift and
-disagree with the CLI about a verdict. It carries the honesty machinery rather than dropping
-it for looking prettier: every page is stamped ONLINE/OFFLINE with the resolved model
-string, `invalid_rate` sits next to the composite instead of below the fold, a run over the
-§6.1 ceiling is banner-blocked as NOT REPORTABLE, pressure payloads are redacted to id +
-category, judge findings keep their *LLM-judged, unvalidated* marker, and degenerate
-intervals are flagged as such. Five tabs: **Run**, **Scorecard**, **Traces** (step-by-step
-drill-down, including `defect_marker` steps), **Compare** (paired McNemar + BH), and
-**Integrity** — which shows the live sandbox state and the standing limitations rather than
-hiding them in a footer.
+Reports are HTML per run (`runs/<id>/report.html`), and `landing/` builds a static summary
+page from the same artifacts — both are **views over the engine, never a second
+implementation**, so neither can drift and disagree with the CLI about a verdict.
 
 Containers (sandbox L3):
 

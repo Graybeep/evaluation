@@ -25,9 +25,9 @@ runs/history.jsonl              ← append-only run history
                                         └──> the page renders it
 ```
 
-`build.py` **reads the engine's own output and never re-derives a number** — the same rule
-`app.py` follows, so the page cannot drift and disagree with the CLI about a verdict. Re-run
-it after any new run; it is idempotent and rewrites the same `<script>` block.
+`build.py` **reads the engine's own output and never re-derives a number**, so the page
+cannot drift and disagree with the CLI about a verdict. Re-run it after any new run; it is
+idempotent and rewrites the same `<script>` block.
 
 What is live on the page today:
 
@@ -65,10 +65,15 @@ a `$0 / $249 / Custom` ladder described nothing that exists.
 The **"free / no billing" framing that replaced it is also gone** (removed 2026-08-21). It
 was the same mistake one level down: "Free to use. No tiers, no seats, no billing" answers a
 commercial question nobody asked of a research demo, and implies there is a paid thing to
-contrast with. `#use` now simply says the numbers are reproducible and lists the three
-commands that reproduce them (`streamlit run app.py`,
-`cli.py calibrate --offline --no-sandbox`, `cli.py mcp-serve`). Each command is checked
-against `are/cli.py`'s real argument names.
+contrast with. `#use` now simply says the numbers are reproducible and lists the two
+commands that reproduce them (`cli.py calibrate --offline --no-sandbox`, `cli.py
+mcp-serve`). Each command is checked against `are/cli.py`'s real argument names.
+
+The Streamlit console (`app.py`) was **deleted 2026-08-21** and its card removed from `#use`
+along with it. The page is a static view of baked artifacts and cannot run the engine, so it
+never substituted for the console — but a page advertising a command that no longer exists
+is exactly the kind of untrue claim this repo spends its §7.10 discipline avoiding, so the
+reference went when the file did.
 
 The only cost-shaped statement left is factual and load-bearing: the offline path needs no
 API key, which is why the whole demo runs with no spend.

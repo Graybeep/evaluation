@@ -2,7 +2,7 @@
 
     python landing/build.py
 
-The landing page is a *view*, exactly as `app.py` is: it renders numbers the engine already
+The landing page is a *view*, never a second implementation: it renders numbers the engine already
 produced and never re-derives one. Every figure here is read from an artifact written by
 `are.score.compute` / `are.score.regression` — `runs/<id>/scorecard.json`,
 `runs/calibration.json`, `runs/<id>/comparison.json`, `runs/history.jsonl` — so the page
