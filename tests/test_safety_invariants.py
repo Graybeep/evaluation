@@ -416,10 +416,27 @@ def test_acceptance_is_inconclusive_not_failed_on_unreportable_data():
     bad_card = scorecard(1)                       # 12.5% > 5%
     assert not bad_card.reportable
 
+    # Call the REAL gate. An earlier version of this test re-implemented the dict
+    # comprehension in its own body, so it stayed green with the production wiring in
+    # `cmd_calibrate` reverted — the fail-open of §7.10 committed by the test itself.
+    from are.cli import ACCEPTANCE_EXIT, acceptance_verdict
+
     scores = {"clean": clean_card, "pushover": bad_card}
-    unreportable = {a: s for a, s in scores.items() if not s.reportable}
-    assert unreportable, "a 12.5% invalid rate must block the verdict"
+    verdict, unreportable = acceptance_verdict(scores, checks_ok=True)
+    assert verdict == "INCONCLUSIVE", "a 12.5% invalid rate must block the verdict"
     assert set(unreportable) == {"pushover"}
+
+    # Unreportable data outranks the checks in BOTH directions: passing checks must not be
+    # laundered into a PASS, and failing checks must not be blamed on the agents.
+    assert acceptance_verdict(scores, checks_ok=False)[0] == "INCONCLUSIVE"
+
+    # With every scorecard reportable the verdict is the checks, unchanged.
+    good = {"clean": clean_card}
+    assert acceptance_verdict(good, checks_ok=True) == ("PASS", {})
+    assert acceptance_verdict(good, checks_ok=False)[0] == "FAIL"
+
+    # Exit codes stay distinct: 0 accepted, 1 genuinely failed, 2 bad data.
+    assert ACCEPTANCE_EXIT == {"PASS": 0, "FAIL": 1, "INCONCLUSIVE": 2}
 
 
 def _verdict_stub(sid, outcome):
@@ -574,21 +591,36 @@ def test_the_frozen_set_contains_no_vacuously_satisfiable_assertion():
 
 
 def test_selftest_judge_rows_assert_the_positive_condition():
-    """A row that did not run must not satisfy the gate (the selftest fail-open)."""
-    passing = {"result": "PASS"}
-    skipped = {"result": "SKIPPED"}
-    failing = {"result": "FAIL (judge flipped)"}
+    """A row that did not run must not satisfy the gate (the selftest fail-open).
 
-    def gate(rows):
-        ok, unverified = True, []
-        for row in rows:
-            ok &= row["result"] == "PASS" or row["result"] in ("SKIPPED", "INCONCLUSIVE")
-            if row["result"] in ("SKIPPED", "INCONCLUSIVE"):
-                unverified.append(row["result"])
-        return ok, unverified
+    This calls `are.cli.selftest_judge_gate` — the function `cmd_selftest` itself folds its
+    rows through. The previous version of this test defined a local `gate()` with the same
+    shape, which meant reverting the CLI to `not result.startswith("FAIL")` left the whole
+    suite green. A test that re-implements its subject asserts nothing about the subject.
+    """
+    from are.cli import selftest_judge_gate
 
-    assert gate([passing]) == (True, [])
-    assert gate([failing])[0] is False
+    passing = {"payload_id": "P-1", "result": "PASS"}
+    skipped = {"payload_id": "P-2", "result": "SKIPPED"}
+    failing = {"payload_id": "P-3", "result": "FAIL (judge flipped)"}
+
+    assert selftest_judge_gate([passing]) == (True, [])
+    assert selftest_judge_gate([failing])[0] is False
+
     # The load-bearing case: SKIPPED does not fail the gate, but it can never be silent.
-    ok, unverified = gate([skipped])
-    assert ok is True and unverified == ["SKIPPED"]
+    ok, unverified = selftest_judge_gate([skipped])
+    assert ok is True and len(unverified) == 1 and "SKIPPED" in unverified[0]
+    assert "P-2" in unverified[0], "an unverified check must name itself"
+
+    # INCONCLUSIVE is the other non-running state and is bucketed the same way.
+    ok, unverified = selftest_judge_gate([{"payload_id": "P-4", "result": "INCONCLUSIVE"}])
+    assert ok is True and len(unverified) == 1
+
+    # A result string the gate does not recognise is NOT assumed benign — this is the
+    # difference between asserting the positive condition and negating the failure signal.
+    for weird in ("", "ok", "pass", "ERROR", "PASSED"):
+        assert selftest_judge_gate([{"payload_id": "P-5", "result": weird}])[0] is False, weird
+
+    # A clean row cannot launder a bad one when they are folded together.
+    ok, unverified = selftest_judge_gate([passing, skipped, failing])
+    assert ok is False and len(unverified) == 1

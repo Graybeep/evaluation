@@ -626,6 +626,57 @@ def cmd_report(args) -> int:
 
 
 # --------------------------------------------------------------- calibrate
+def acceptance_verdict(scores: dict, checks_ok: bool) -> tuple[str, dict]:
+    """The §5 suite verdict, three-way (§6.1). Pure, so it can be tested directly.
+
+    Bug #7 was that `cmd_calibrate` rendered PASS/FAIL straight from the check results and
+    never consulted the REPORTABILITY gate, so it twice announced "ACCEPTANCE: FAIL — fix
+    the platform" from data its own scorecards had marked `reportable=False`. A verdict
+    computed from rejected data is not a finding about the agents; it is a finding about
+    the harness.
+
+    This lives outside `cmd_calibrate` on purpose. The first test written for bug #7
+    re-implemented this dict comprehension in its own body, so it passed whatever the CLI
+    did — a test-side instance of exactly the fail-open §7.10 is about. Production and test
+    must call the *same* function or the test proves nothing.
+
+    Returns (verdict, unreportable) where verdict is PASS | FAIL | INCONCLUSIVE.
+    """
+    unreportable = {a: sc for a, sc in scores.items() if not sc.reportable}
+    if unreportable:
+        return "INCONCLUSIVE", unreportable
+    return ("PASS" if checks_ok else "FAIL"), {}
+
+
+ACCEPTANCE_EXIT = {"PASS": 0, "FAIL": 1, "INCONCLUSIVE": 2}
+
+
+def selftest_judge_gate(rows: list[dict]) -> tuple[bool, list[str]]:
+    """Fold judge-attack rows into (ok, unverified), asserting the POSITIVE condition.
+
+    The original gate was `ok &= not row["result"].startswith("FAIL")`, over a domain with
+    four states — PASS, FAIL, SKIPPED, INCONCLUSIVE. Three unrun security checks therefore
+    scored as clean and the command printed a bare PASS (§7.10).
+
+    A row PASSES the gate only by being PASS. SKIPPED and INCONCLUSIVE do not fail the
+    gate — offline there is no endpoint to attack — but they can never be silent: they are
+    returned as `unverified` so the caller must say "UNVERIFIED" in words. Anything else,
+    including an unrecognised result string, is a failure.
+
+    Like `acceptance_verdict`, this is module-level so the test can call the real thing.
+    """
+    ok, unverified = True, []
+    for row in rows:
+        result = str(row.get("result", ""))
+        if result == "PASS":
+            continue
+        if result in ("SKIPPED", "INCONCLUSIVE"):
+            unverified.append(f"§7.2 judge-attack {row.get('payload_id', '?')}: {result}")
+            continue
+        ok = False          # FAIL, or anything unrecognised — never assumed benign
+    return ok, unverified
+
+
 def cmd_calibrate(args) -> int:
     """The §5 acceptance criterion for the platform itself."""
     scenarios = load_scenarios(args.scenarios)
@@ -730,8 +781,8 @@ def cmd_calibrate(args) -> int:
     # from data the platform rejected is not a finding about the agents; it is a finding
     # about the harness. INCONCLUSIVE is the honest third outcome — the same three-way
     # discipline §6.1 applies to individual runs, applied to the suite verdict.
-    unreportable = {a: sc for a, sc in scores.items() if not sc.reportable}
-    inconclusive = bool(unreportable)
+    verdict, unreportable = acceptance_verdict(scores, ok)
+    inconclusive = verdict == "INCONCLUSIVE"
 
     _p("")
     if inconclusive:
@@ -745,14 +796,15 @@ def cmd_calibrate(args) -> int:
         _p("   The checks above are printed for diagnosis only. Do not quote them, and do")
         _p("   not 'fix' anything on their basis — fix the harness or the endpoint first.")
     else:
-        _p(f" ACCEPTANCE: {'PASS' if ok else 'FAIL — fix the platform, not the scenarios (§5)'}")
+        _p(f" ACCEPTANCE: {verdict}"
+           + ("" if verdict == "PASS" else " — fix the platform, not the scenarios (§5)"))
     _p("=" * 78)
 
     out = Path(args.out or "runs") / "calibration.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(
-        {"accepted": (False if inconclusive else ok),
-         "verdict": ("INCONCLUSIVE" if inconclusive else ("PASS" if ok else "FAIL")),
+        {"accepted": verdict == "PASS",
+         "verdict": verdict,
          "unreportable_agents": {a: round(sc.invalid_rate, 4)
                                  for a, sc in sorted(unreportable.items())},
          "checks": [{"check": c, "passed": p} for c, p in checks],
@@ -762,7 +814,7 @@ def cmd_calibrate(args) -> int:
          "at": time.strftime("%Y-%m-%dT%H:%M:%S")}, indent=2, default=str), encoding="utf-8")
     _p(f"wrote {out}")
     # 0 = accepted, 1 = genuinely failed, 2 = inconclusive (bad data, not a bad agent)
-    return 2 if inconclusive else (0 if ok else 1)
+    return ACCEPTANCE_EXIT[verdict]
 
 
 # ---------------------------------------------------------------- selftest
@@ -811,21 +863,16 @@ def cmd_selftest(args) -> int:
 
     _p("")
     _p(f"judge injection self-tests (§7.2) — judge {judge_version()}")
-    unverified: list[str] = []
-    for row in selftest_injection(cache_mode=args.cache):
+    rows = list(selftest_injection(cache_mode=args.cache))
+    for row in rows:
         _p(f"   {row['payload_id']:<14} {row['result']:<20} {row.get('detail', '')}")
-        # Assert the POSITIVE condition (§7.10). "Doesn't start with FAIL" silently
-        # admitted SKIPPED, which is how three unrun security checks scored as clean.
-        ok &= row["result"] == "PASS" or row["result"] in ("SKIPPED", "INCONCLUSIVE")
-        # A check that did not run is not a check that passed. SKIPPED rows used to slip
-        # through `startswith("FAIL")` and the command printed a bare PASS while its most
-        # important security test had never executed — the same fail-open as bug #7
-        # (gate ignoring reportability) and bug #8 (0% for "nothing evaluated").
-        if row["result"] in ("SKIPPED", "INCONCLUSIVE"):
-            unverified.append(f"§7.2 judge-attack {row['payload_id']}: {row['result']}")
         if row["result"] == "INCONCLUSIVE":
             _p("      ^ the judge-attack test could not discriminate; treat §7.2 as "
                "UNVERIFIED rather than passing")
+    # Assert the POSITIVE condition (§7.10), via the shared gate so the test that guards
+    # this exercises the same code the command runs.
+    rows_ok, unverified = selftest_judge_gate(rows)
+    ok &= rows_ok
     if unverified:
         _p(f"   -> {len(unverified)} check(s) DID NOT RUN. The judge's resistance to our "
            "own injection corpus is UNVERIFIED, not passing.")
