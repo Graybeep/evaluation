@@ -23,6 +23,7 @@ in which case update the file first, then write the code.
 | Judge-as-primary-oracle | Cannot validate a judge without human labels we don't have time to produce. |
 | ~~Real MCP adapter for arbitrary agents~~ **BUILT, 2026-08-21** | Shipped as an MCP *server* (`runner/mcp_server.py`, `cli.py mcp-serve`): ARE is the tool provider, so the agent under test is the host. Scoped honestly — see §4.3. |
 | Classifier→generator feedback loop | Reward-hacks the classifier. Explicitly out of scope. |
+| **Prompt-conditioned scenario generation** | Generation conditions on the **tool schema** (`tools/registry.yaml`) and the **task domain** (§2), not on the agent's system prompt. Conditioning on the prompt would tailor the suite to one agent and break the cross-agent comparability §5 is validated against — the same suite has to score all five calibration agents. Named here so it reads as a choice, not an oversight. |
 | Distributed / parallel execution | asyncio with a semaphore is enough. |
 
 **Never say "we don't have a sandbox" — we do.** The brief asks for *"sandboxed execution
@@ -37,15 +38,20 @@ traces to our own judge), and that is what we hardened.
 
 ## 0.5 Coverage of the brief (keep this table in the README and on a slide)
 
-Every illustrative direction maps to a shipped component. Nothing is missing; two are
-scoped deliberately and the scoping is the argument, not an excuse.
+Every illustrative direction maps to a shipped component. Nothing is missing; the scoped
+items are named in §0 and the scoping is the argument, not an excuse.
+
+**Keep this table honest as the build moves.** It was drafted on Day 0 and has twice
+claimed things that were no longer true (6 rule detectors when 11 shipped; "κ reported per
+category" when κ is computed nowhere). Re-derive the counts from the code before quoting
+it: `len(load_templates())`, and `SOURCE` in `verify/taxonomy.py` for the rule/judge split.
 
 | Brief asks for | Our component | Scope note |
 |---|---|---|
-| Scenario Generation Engine | §3 — templates + LLM expansion, schema-validated, feasibility-gated | Ships **assertions with every scenario**, which the brief doesn't ask for and is the differentiator |
-| Sandboxed Execution and Replay Harness | §4 + §7.9 — four-layer containment, record/replay cache | Full coverage. Mocked tools = isolation boundary; replay is bit-identical |
-| Failure Mode Classifier | §6 — 6 rule detectors + 2 judge detectors, three-way outcome | Rules primary, judge secondary and labeled. κ reported per category |
-| Destructive Action Guardrail Tester | §5 pressure taxonomy P0–P5 | Reports **P_n − P0 deltas**, not absolutes — a finding, not a feature |
+| Scenario Generation Engine | §3 — 13 hand-authored templates + LLM phrasing pass, schema-validated, feasibility-gated | Ships **assertions with every scenario**, which the brief doesn't ask for and is the differentiator. Conditioned on tool schema + domain, **not** on the agent's prompt (§0) |
+| Sandboxed Execution and Replay Harness | §4 + §7.9 — four-layer containment, record/replay cache, MCP server transport (§4.3) | Mocked tools = isolation boundary; replay is bit-identical and a replay miss is fatal, never a silent live call. L3 is OS-enforced on the offline path only (§7.9 correction) |
+| Failure Mode Classifier | §6 — **11** rule detectors + 2 judge detectors, three-way outcome | Rules primary, judge secondary and labeled everywhere it appears. **No κ is reported** — that would need the human labels §11.1 says we never produced. `score/stats.py::cohens_kappa` exists and is unused; wiring it to judge-vs-judge agreement would measure consistency, not correctness |
+| Destructive Action Guardrail Tester | §5 pressure taxonomy P0–P5, with a P0 control on the frozen set (34 of 60) | Reports **P_n − P0 deltas**, not absolutes — a finding, not a feature. §7.2 judge-attack probes run against our own oracle and report SKIPPED/INCONCLUSIVE rather than passing when they cannot run |
 | Reliability Scorecard and Regression Tracker | §8 — severity-weighted, per-category, paired McNemar + BH | Pairwise A/B across versions; history as append-only JSONL |
 
 ---
@@ -148,7 +154,8 @@ hand-written template (instruction skeleton + assertion skeleton + state skeleto
         └─> feasibility gate (§3.3)  ->  scenario pool
 ```
 
-**Write ~12 templates by hand.** Categories:
+**Write ~12 templates by hand.** (13 shipped — the extra is a fault-tolerance variant.)
+Categories:
 - 4 benign happy-path (agent should just do the task)
 - 3 ambiguity (task underspecified → correct behavior is `must_request_clarification`)
 - 3 destructive-pressure (correct behavior is `must_refuse` or `no_call`)

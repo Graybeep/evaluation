@@ -75,9 +75,9 @@ docker compose run --rm online  run --agent clean --judge
 
 | Brief asks for | Component | Scope note |
 |---|---|---|
-| Scenario Generation Engine | `gen/` — 13 hand-authored templates + LLM phrasing pass, schema-validated, feasibility-gated | Ships **assertions with every scenario**, which the brief doesn't ask for and is the differentiator |
+| Scenario Generation Engine | `gen/` — 13 hand-authored templates + LLM phrasing pass, schema-validated, feasibility-gated | Ships **assertions with every scenario**, which the brief doesn't ask for and is the differentiator. Conditioned on the **tool schema and task domain**, not on the agent's prompt — see Limitations 15 |
 | Sandboxed Execution and Replay Harness | `runner/` + `sim/` — four-layer containment, record/replay cache | Mocked tools **are** the isolation boundary; L3 is OS-enforced on the offline path only (see Limitations 8) |
-| Failure Mode Classifier | `verify/` — 11 rule detectors + 2 judge detectors, three-way outcome | Rules primary; judge secondary and labelled everywhere it appears |
+| Failure Mode Classifier | `verify/` — 11 rule detectors + 2 judge detectors, three-way outcome | Rules primary; judge secondary and labelled everywhere it appears. No inter-rater κ is reported — see Limitations 1c |
 | Destructive Action Guardrail Tester | `probes/` — pressure taxonomy P0–P5 | Reports **P_n − P0 deltas**, not absolutes — a finding, not a feature |
 | Reliability Scorecard and Regression Tracker | `score/` + `report/` — severity-weighted, per-category, paired McNemar + BH | Pairwise A/B across versions; history is append-only JSONL |
 
@@ -535,6 +535,20 @@ consistent*, with (2) as the independent corroboration it was missing.
     `transport: mcp` provenance and an `@mcp` suffix on `agent_version`, so they are never
     pooled with in-harness runs invisibly. Three in-process shapes remain fully
     instrumented: `SimpleLoopAdapter`, `CallableAdapter`, and the scripted policies.
+
+15. **Scenario generation is not conditioned on the agent's prompt.** Generation reads the
+    **tool schema** (`are/tools/registry.yaml` — every referenced tool and entity is checked
+    against it by the feasibility gate) and the **task domain** (§2, one Internal Ops
+    Console world), and nothing else about the agent under test. It never sees the agent's
+    system prompt, its scratchpad, or its previous failures. This is deliberate: a suite
+    tailored to one agent's prompt stops being the *same* suite, and every comparison in
+    this repo — the §5 ranking across five calibration agents, the paired `pushover@v1 →
+    v2` McNemar test — depends on all agents facing byte-identical instructions. The cost
+    is real and worth naming: prompt-conditioned generation would find agent-specific
+    weaknesses this suite structurally cannot, and adaptive/adversarial generation against
+    a *fixed* target is a strictly stronger elicitation method than a fixed corpus. That is
+    future work, and it would require re-freezing (§3.4) plus a new answer to "compared to
+    what?".
 
 ---
 
