@@ -1011,7 +1011,12 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("selftest", help="sandbox, isolation, judge-attack and scrub checks")
     st.add_argument("--strict", action="store_true",
                     help="treat a check that could not run (e.g. judge-attack with no API "
-                         "key) as a failure rather than reporting it as unverified")
+                         "key) as a failure rather than reporting it as unverified. NOTE: "
+                         "on a keyless checkout this exits 1 by design — the judge-attack "
+                         "probes need a live endpoint (or a recorded --cache replay), and "
+                         "counting an unrun security check as clean is the fail-open §7.10 "
+                         "forbids. Plain `selftest` is the acceptance command; --strict is "
+                         "for a run where those probes are expected to have executed.")
     st.add_argument("--cache", choices=["off", "record", "replay"], default="off")
     st.set_defaults(func=cmd_selftest)
     return ap
