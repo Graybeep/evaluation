@@ -148,7 +148,7 @@ than back-filled, because inventing them would be its own instance.
 | 1 | The harness is the risk surface | `are selftest` | L1–L4, world isolation, our own injection corpus fired at our own judge, secret scrubbing. Judge probes report **SKIPPED**, not passed |
 | 2 | Five agents, defects not disclosed | `are calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox` | Ranking recovered; the **three-state fingerprint**; point at `confabulator`'s NOT APPLICABLE row |
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
-| 4 | Regression **and** null | `are compare runs/p3-v2 runs/p3-v1 --ci` then `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible |
+| 4 | Regression **and** null | **first** `bash scripts/demo_runs.sh` (builds the three runs), then `are compare runs/p3-v2 runs/p3-v1 --ci` and `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible. `runs/` is gitignored, so a fresh clone has nothing to compare until you build it |
 | 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; two detectors that never fire; top-3 templates are 50% of the suite |
 | 6 | **Twelve of seventeen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 14 of 14 revert-verified — quote that, not 253 |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
@@ -283,8 +283,11 @@ bash demo.sh                            # -> exit 0 in 50s
 1. **`selftest --strict` exits 1** on a keyless checkout. That is correct and documented,
    but it looks like a failure on a projector. Use plain `selftest`, and if someone spots
    the flag, the answer is one sentence: *an unrun security check is not a passing one.*
-2. **Step 3 needs `report` run first.** `calibrate` writes verdicts; `report` renders them.
-   This exact assumption already broke the running order once.
+2. **Steps 3 and 4 need their artifacts built first.** `calibrate` writes verdicts,
+   `report` renders them; and `runs/` is gitignored, so the p3 comparison runs do not
+   exist in a fresh clone. Both assumptions broke the running order — the second was
+   worse, because `compare` crashed and exited **1**, which is also the expected code for
+   that beat. A rehearsal can pass for the wrong reason.
 3. **With a live key, `selftest` reports L3 degraded.** Also correct (§7.9) — egress deny
    cannot be on when you need egress. Say it before anyone asks.
 

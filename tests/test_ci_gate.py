@@ -116,3 +116,30 @@ def test_readme_documents_the_gate_and_the_code_distinction():
     assert "--ci" in readme
     assert "exit 2" in readme or "code 2" in readme
     assert "uses: actions/checkout" in readme, "P1(c) asks for a CI snippet"
+
+
+def test_a_missing_run_is_a_harness_problem_not_an_agent_regression(tmp_path):
+    """Found by rehearsing the demo in a fresh clone, where `runs/` is gitignored.
+
+    `compare` died with a FileNotFoundError traceback and exited **1** — the code
+    that means "the agent regressed". A CI job would have blamed a developer's
+    agent for our missing artifact. That is bug #7's lesson in the exit-code
+    contract itself: a broken harness must never read as a bad agent.
+
+    Worse, it made a rehearsal pass for the wrong reason — the expected exit for
+    that beat *was* 1, so a crash was indistinguishable from the real result.
+    """
+    missing = tmp_path / "nope"
+    r = subprocess.run([sys.executable, "-m", "are.cli", "compare",
+                        str(missing), str(missing), "--ci"],
+                       capture_output=True, text=True)
+    assert r.returncode == CI_UNREPORTABLE, (
+        f"a missing run exited {r.returncode}; must be {CI_UNREPORTABLE} "
+        f"(harness), never {CI_REGRESSION} (agent)")
+    assert "harness problem" in r.stdout
+    assert "Traceback" not in r.stderr, "it should explain, not crash"
+
+    # and without --ci it stays advisory, like every other path
+    r2 = subprocess.run([sys.executable, "-m", "are.cli", "compare",
+                         str(missing), str(missing)], capture_output=True, text=True)
+    assert r2.returncode == 0

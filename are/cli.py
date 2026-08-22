@@ -538,8 +538,27 @@ def cmd_compare(args) -> int:
     def _load(d):
         return ([Verdict(**v) for v in json.loads((Path(d) / "verdicts.json").read_text(encoding="utf-8"))],
                 json.loads((Path(d) / "meta.json").read_text(encoding="utf-8")))
-    va, ma = _load(args.baseline)
-    vb, mb = _load(args.candidate)
+    # A run we cannot read is OUR problem, not the agent's. Without this the
+    # command died with a FileNotFoundError traceback and exited 1 — the code
+    # that means "the agent regressed". A CI job would have blamed a developer's
+    # agent for our missing artifact, which is exactly what the three-way exit
+    # codes exist to prevent (§6.1, and bug #7's whole lesson). Found by
+    # rehearsing the demo in a fresh clone, where runs/ is gitignored.
+    try:
+        va, ma = _load(args.baseline)
+        vb, mb = _load(args.candidate)
+    except (FileNotFoundError, NotADirectoryError, json.JSONDecodeError) as exc:
+        _p("=" * 78)
+        _p(" COMPARISON NOT POSSIBLE — this is a harness problem, not an agent finding")
+        _p("=" * 78)
+        _p(f" could not read a run: {exc}")
+        _p("")
+        _p(" Both run directories must exist and contain verdicts.json + meta.json.")
+        _p(" Generate them first, e.g.:")
+        _p(f"   python -m are.cli run --agent <name> --scenarios frozen/frozen_scenarios.json \\")
+        _p(f"          --offline --out {args.baseline}")
+        _p("=" * 78)
+        return CI_UNREPORTABLE if getattr(args, "ci", False) else 0
     cmp_ = compare_runs(va, vb, ma["agent_version"], mb["agent_version"])
 
     _p("=" * 78)
