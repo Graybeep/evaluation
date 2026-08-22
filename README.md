@@ -656,11 +656,21 @@ plus the checks in this repo pin the figures each item quotes.
    classification, counted retries — and calling it a deficiency confused a design decision
    with a defect.
 
-   *The "unstable infrastructure" claim was stale.* It rested on runs of 2026-08-20 at 28%
-   and 12.5% invalid. On 2026-08-23 the same gateway served a judge-enabled run at
-   **`invalid_rate 0.0`, reportable=True**. That is a small sample (8 scenarios) and does
-   not prove stability — but it does refute "could not sustain a reportable run", so that
-   sentence is gone.
+   *The "unstable infrastructure" claim was stale — but read the evidence carefully.* It
+   rested on runs of 2026-08-20 at 28% and 12.5% invalid. Two later runs refute "could not
+   sustain a reportable run", so that sentence is gone. Neither is strong evidence that a
+   **full online agent pass** will hold, and the difference is worth stating because
+   conflating them is exactly the §7.10 error:
+
+   | run | date | what actually went over the wire | n | invalid |
+   |---|---|---|---|---|
+   | `online-first` | 08-20 | **the agent loop** (`clean@v1`, multi-turn tool calls) | 1 scenario | 0.0 |
+   | `judge-live` | 08-23 | **the judge only** — `offline=True`, the agent was the scripted policy | 8 scenarios | 0.0 |
+
+   So the larger sample exercises the *judge* path (one call per run), and the only
+   *agent*-path online evidence is a single scenario. A 60-scenario × N=3 × 4-agent pass is
+   roughly **720 agent runs and several thousand calls** — three orders of magnitude beyond
+   what has been demonstrated. "Closable" is a forecast here, not a measurement.
 
    **What is actually still true:** no full 60-scenario online run has been attempted, so
    every headline number here is offline scripted-policy behaviour. That is a gap in
