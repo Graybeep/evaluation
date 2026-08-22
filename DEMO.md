@@ -149,7 +149,7 @@ than back-filled, because inventing them would be its own instance.
 | 2 | Five agents, defects not disclosed | `are calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox` | Ranking recovered; the **three-state fingerprint**; point at `confabulator`'s NOT APPLICABLE row |
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
 | 4 | Regression **and** null | **first** `bash scripts/demo_runs.sh` (builds the three runs), then `are compare runs/p3-v2 runs/p3-v1 --ci` and `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible. `runs/` is gitignored, so a fresh clone has nothing to compare until you build it |
-| 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; two detectors that never fire; top-3 templates are 50% of the suite |
+| 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; **two detectors that never fire on the frozen set — a gap in the SUITE, not the detectors; both have revert-verified positive controls outside it**; top-3 templates are 50% of the suite |
 | 6 | **Thirteen of eighteen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 16 of 16 revert-verified — quote that, not 259 |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 

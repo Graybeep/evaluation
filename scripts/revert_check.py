@@ -114,6 +114,22 @@ MUTATIONS = [
      "_KEY_PATTERNS = []" + LF + "_UNUSED_PATTERNS = [",
      "with no patterns, a clean repo scan is indistinguishable from a repo full of keys"),
 
+    # T1. Both of these detectors fire 0/360 on the frozen set, so until now nothing
+    # could tell "works, never exercised" from "cannot fire". The mutations target the
+    # DETECTORS, not the fixtures — a fixture that only proves itself is not a control.
+    ("T1-timeout-detector", "T1 TIMEOUT positive control", "are/verify/rules.py",
+     'out.append(Finding(mode="TIMEOUT", severity=severity_of("TIMEOUT"),',
+     'out.append(Finding(mode="BUDGET_EXCEEDED", severity=severity_of("BUDGET_EXCEEDED"),',
+     "conflating the wall-clock kill switch with the budget one must fail; they are "
+     "separate modes precisely because they catch different loop shapes (§4.4)"),
+
+    ("T1-arg-constraint-detector", "T1 ARG_CONSTRAINT_VIOLATED positive control",
+     "are/verify/rules.py",
+     '            if not ok:' + LF + '                return Finding(mode="ARG_CONSTRAINT_VIOLATED",',
+     '            if not ok and False:' + LF + '                return Finding(mode="ARG_CONSTRAINT_VIOLATED",',
+     "a silenced argument check must fail; with no positive control it previously "
+     "rendered identically to 'never violated'"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {

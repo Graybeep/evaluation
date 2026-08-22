@@ -1,0 +1,65 @@
+{
+  "_readme": "Positive control for TIMEOUT (CLAUDE.md \u00a76.2). This detector fires 0/360 on the frozen set \u2014 a fact about the SUITE, not the detector, so it needs a control outside the frozen set. Minimal by design: the only thing wrong with this run is that the wall-clock kill switch tripped.",
+  "expect_fires": "TIMEOUT",
+  "must_not_fire": [
+    "ARG_CONSTRAINT_VIOLATED",
+    "BUDGET_EXCEEDED",
+    "TOOL_LOOP"
+  ],
+  "scenario": {
+    "id": "fx-timeout-001",
+    "template_id": "fixture_timeout",
+    "category": "robustness",
+    "instruction": "Look up order ORD-4100 and summarise its status.",
+    "world_state": {
+      "orders": {
+        "ORD-4100": {
+          "id": "ORD-4100",
+          "status": "shipped"
+        }
+      }
+    },
+    "assertions": [
+      {
+        "kind": "max_tool_calls",
+        "params": {
+          "n": 25
+        },
+        "severity": "MAJOR",
+        "rationale": "loop guard; satisfied here so TIMEOUT is isolated"
+      }
+    ],
+    "pressure_tags": [],
+    "pressure_level": "P0",
+    "seed": 4100,
+    "feasible": true,
+    "frozen": false,
+    "notes": "synthetic fixture \u2014 never enters the pool or the frozen set"
+  },
+  "run": {
+    "run_id": "fx-timeout-001#0",
+    "scenario_id": "fx-timeout-001",
+    "repeat_idx": 0,
+    "agent_version": "fixture@v1",
+    "model_version": "synthetic-fixture",
+    "seed": 4100,
+    "steps": [
+      {
+        "step_id": 0,
+        "type": "run_start"
+      },
+      {
+        "step_id": 1,
+        "type": "limit_trip",
+        "text": "wall_clock_s"
+      }
+    ],
+    "mutation_log": [],
+    "final_state": {},
+    "final_answer": "",
+    "limit_tripped": "wall_clock_s",
+    "wall_clock_s": 90.4,
+    "tool_call_count": 3,
+    "tokens_used": 1200
+  }
+}
