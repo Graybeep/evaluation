@@ -56,9 +56,6 @@ a{color:inherit}
 img,svg{max-width:100%}
 :focus-visible{outline:2px solid var(--ring);outline-offset:3px;border-radius:4px}
 .wrap{width:100%;max-width:var(--maxw);margin-inline:auto;padding-inline:var(--s4)}
-.mono{font-family:var(--mono)}
-.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
-    clip:rect(0 0 0 0);white-space:nowrap;border:0}
 /* offscreen until focused — a skip link that never surfaces is not a skip link */
 .skip{position:absolute;left:var(--s4);top:-64px;z-index:100;transition:top var(--t)}
 .skip:focus-visible{top:12px}
@@ -139,42 +136,12 @@ h1 .hl{color:var(--accent)}
 .chip:hover{color:var(--fg);border-color:var(--accent)}
 .chip[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);
   border-color:var(--accent)}
-.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin:var(--s4) 0}
-@media(max-width:420px){.tiles{grid-template-columns:1fr}}
-.tile{padding:var(--s3);border-radius:var(--r);background:rgba(255,255,255,.62);
-  border:1px solid var(--border)}
-.tile-k{font:500 10.5px/1 var(--mono);letter-spacing:.06em;color:var(--muted-fg);
-  text-transform:uppercase}
-.tile-v{margin-top:7px;font:600 clamp(1.15rem,2.4vw,1.5rem)/1 var(--mono);
-  font-variant-numeric:tabular-nums}
-.tile-s{margin-top:5px;font:400 11px/1.35 var(--mono);color:var(--muted-fg)}
 .ok{color:var(--accent)} .warn{color:var(--warn)} .bad{color:var(--bad)}
 .nm{color:var(--faint-fg);font-style:italic}
-.chart-wrap{border-radius:var(--r);background:rgba(255,255,255,.5);
-  border:1px solid var(--border);padding:var(--s3) var(--s3) var(--s2)}
-.chart-lg{display:flex;gap:var(--s4);flex-wrap:wrap;align-items:center;
-  font:400 11.5px/1 var(--mono);color:var(--muted-fg);margin-bottom:var(--s3)}
-.key{display:inline-flex;align-items:center;gap:7px}
-.swatch{width:16px;height:0;border-top:2px solid var(--accent);flex:none}
-.swatch.dash{border-top-style:dashed;border-color:var(--faint-fg)}
-.swatch.mark{width:9px;height:9px;border:0;border-radius:50%;background:transparent;
-  box-shadow:0 0 0 2px var(--bad) inset}
-.chart{display:block;width:100%;height:auto}
-.axis-l{font:400 9.5px var(--mono);fill:var(--muted-fg)}
 .panel-ft{display:flex;gap:var(--s2);align-items:flex-start;margin-top:var(--s3);
   padding-top:var(--s3);border-top:1px solid var(--border);
   font:400 11.5px/1.5 var(--sans);color:var(--muted-fg)}
 .panel-ft svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--accent)}
-.modes{margin-top:var(--s3);display:grid;gap:6px}
-.mode{display:flex;align-items:center;gap:var(--s2);font:400 11.5px/1 var(--mono)}
-.mode-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  color:var(--muted-fg)}
-.mode-b{width:84px;height:6px;border-radius:99px;background:var(--bg-2);flex:none;
-  overflow:hidden}
-.mode-b i{display:block;height:100%;border-radius:99px;background:var(--bad)}
-.mode-b i.major{background:var(--warn)}
-.mode-v{width:66px;text-align:right;flex:none;color:var(--fg);
-  font-variant-numeric:tabular-nums}
 .sev{font:600 9px/1 var(--mono);padding:3px 5px;border-radius:4px;flex:none;
   letter-spacing:.04em}
 .sev.CRITICAL{background:rgba(179,38,30,.11);color:var(--bad)}
@@ -196,7 +163,8 @@ h1 .hl{color:var(--accent)}
 .badge span{display:block;font:400 11.5px/1.35 var(--sans);color:var(--muted-fg);margin-top:1px}
 
 /* ── sections ────────────────────────────────────────────────────────────── */
-section,#features{scroll-margin-top:84px}
+section,[id]{scroll-margin-top:84px}   /* sticky nav is 68px + border;
+   JS calls scrollIntoView() on #card, which would otherwise land under it */
 .sec{padding:var(--s8) 0}
 .sec-hd{max-width:60ch;margin-bottom:var(--s6)}
 .sec-hd.mid{margin-inline:auto;text-align:center}
@@ -204,65 +172,22 @@ section,#features{scroll-margin-top:84px}
   color:var(--accent)}
 h2{font-size:clamp(1.6rem,3.4vw,2.4rem);font-weight:600;margin-top:var(--s3)}
 .sec-hd p{margin-top:var(--s3);color:var(--muted-fg);font-size:1.03rem}
-
-/* ── results (real data) ─────────────────────────────────────────────────── */
-.rank{display:grid;gap:var(--s2)}
-.rank-row{display:grid;grid-template-columns:132px 1fr;gap:var(--s3);align-items:center;
-  padding:var(--s3);border-radius:var(--r);background:rgba(255,255,255,.5);
-  border:1px solid var(--border)}
-@media(max-width:640px){.rank-row{grid-template-columns:1fr;gap:var(--s2)}}
-.rank-a{font:600 13.5px/1.3 var(--mono)}
-.rank-a small{display:block;font:400 11px/1.35 var(--sans);color:var(--muted-fg);
-  margin-top:3px;white-space:normal}
 .bar{position:relative;height:30px;border-radius:var(--r-sm);background:var(--bg-2);
   overflow:hidden}
 .bar i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,
   var(--accent-dk),var(--accent));border-radius:var(--r-sm)}
 .bar b{position:absolute;right:9px;top:50%;transform:translateY(-50%);
   font:600 12px/1 var(--mono);color:var(--fg);font-variant-numeric:tabular-nums}
-.bar-ci{margin-top:5px;font:400 10.5px/1 var(--mono);color:var(--muted-fg)}
 .accept{display:flex;align-items:center;gap:10px;margin-top:var(--s4);padding:var(--s3);
   border-radius:var(--r);border:1px solid rgba(21,117,75,.3);background:var(--accent-sf);
   font:500 13px/1.45 var(--sans)}
 .accept.fail{border-color:rgba(179,38,30,.32);background:rgba(179,38,30,.07)}
 .accept svg{width:18px;height:18px;flex:none;color:var(--accent)}
 .accept.fail svg{color:var(--bad)}
-.reg{display:grid;gap:var(--s3);grid-template-columns:1fr}
-@media(min-width:760px){.reg{grid-template-columns:repeat(4,1fr)}}
-.reg .tile{background:rgba(255,255,255,.55)}
-
-/* ── features ────────────────────────────────────────────────────────────── */
-.feats{display:grid;gap:var(--s3);grid-template-columns:1fr}
-@media(min-width:640px){.feats{grid-template-columns:repeat(2,1fr)}}
-@media(min-width:1024px){.feats{grid-template-columns:repeat(3,1fr)}}
-.feat{padding:var(--s4);transition:border-color var(--t),transform var(--t)}
-.feat:hover{border-color:var(--glass-brd-hi);transform:translateY(-2px)}
-@media (prefers-reduced-motion:reduce){.feat:hover{transform:none}}
-.feat-ic{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;
-  background:var(--accent-sf);border:1px solid rgba(21,117,75,.22);margin-bottom:var(--s3)}
-.feat-ic svg{width:21px;height:21px;color:var(--accent)}
-.feat h3{font-size:1.05rem;font-weight:600}
-.feat p{margin-top:10px;font-size:14.2px;color:var(--muted-fg)}
-.feat code{font:500 12.5px var(--mono);color:var(--accent-dk);background:var(--accent-sf);
-  padding:1px 5px;border-radius:4px}
-
-/* ── get-started cards ───────────────────────────────────────────────────── */
-.tiers{display:grid;gap:var(--s3);grid-template-columns:1fr;align-items:start}
-@media(min-width:900px){.tiers{grid-template-columns:repeat(2,minmax(0,1fr));
-  max-width:840px;margin-inline:auto}}
-.tier-wrap{position:relative;height:100%}
-.tier{padding:var(--s5) var(--s4);display:flex;flex-direction:column;height:100%}
-.tier h3{font-size:1.1rem;font-weight:600}
-.tier-d{margin-top:7px;font-size:13.5px;color:var(--muted-fg);min-height:38px}
 .tier-cmd{margin:var(--s4) 0 var(--s2);padding:10px 12px;border-radius:8px;
   background:var(--accent-sf);border:1px solid rgba(21,117,75,.22);
   font:500 12.4px/1.5 var(--mono);color:var(--accent-dk);
   overflow-x:auto;white-space:pre;min-width:0}
-.tier-n{font:400 11.5px/1.5 var(--mono);color:var(--muted-fg);min-height:32px}
-.tier ul{list-style:none;margin:var(--s4) 0 var(--s5);padding:0;display:grid;gap:11px}
-.tier li{display:flex;gap:10px;font-size:14px;color:var(--muted-fg);align-items:flex-start}
-.tier li svg{width:16px;height:16px;flex:none;margin-top:3px;color:var(--accent)}
-.tier .btn{width:100%;margin-top:auto}
 .use-note{margin:0 auto var(--s5);max-width:60ch;text-align:center;
   font:400 14px/1.7 var(--sans);color:var(--muted-fg)}
 
@@ -472,3 +397,20 @@ h2 .qm,h3 .qm{width:17px;height:17px;font-size:11px}
 .drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .drop .btn{margin-top:var(--s3)}
 .drop-err{margin-top:var(--s3);font-size:12.8px;color:var(--bad)}
+
+/* ── preformatted blocks (ASCII diagram, config snippets) ───────────────────
+   A <pre> that wraps stops being a diagram, so this scrolls inside its own
+   container. The page never scrolls with it. */
+.flow{
+  margin:var(--s4) 0 0;padding:var(--s4);border-radius:var(--r);
+  background:var(--bg-2);border:1px solid var(--border);
+  font:400 12.2px/1.55 var(--mono);color:var(--fg);
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  white-space:pre;tab-size:2;
+}
+.flow::-webkit-scrollbar{height:9px}
+.flow::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+@media(max-width:560px){.flow{font-size:10.6px;padding:var(--s3)}}
+
+/* container for the pressure ladder — its children were styled, it was not */
+.pres{margin-top:var(--s2)}

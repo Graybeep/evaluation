@@ -95,7 +95,7 @@ INDEX = head(
       </div>
     </div>
 
-    <p class="free-note rv" style="margin-top:var(--s5)">
+    <p class="use-note rv" style="margin-top:var(--s5)">
       Step&nbsp;2 needs no API key: the practice agents are scripted stand-ins carrying the
       same defects, so you can see the whole thing work end to end without spending
       anything.<span data-tip-key="stamp" data-tip-label="offline vs live"></span>
