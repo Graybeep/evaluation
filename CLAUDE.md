@@ -675,8 +675,10 @@ the answer is: same error, different artefact, kept out of the count on purpose.
 negative survives even while writing the guard against it.
 
 Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
-confirm the suite goes red, restore. `scripts/revert_check.py` runs it over 16 shipped
-fixes and writes `reports/revert_verified.json`. **A test that passes with its subject
+confirm the suite goes red, restore. `scripts/revert_check.py` runs it over **19** shipped
+fixes and writes `reports/revert_verified.json`.
+
+**Two numbers live next to each other here and they are not the same number.** **18** is the count of *instances of the bug class* in the table below. **19** is the count of *revert-verified fixes* in `scripts/revert_check.py`. They differ because not every mutation maps to a numbered row — T1 added controls for two detectors that were never a §7.10 instance at all, and T2 gated a function that was merely unused. Quoting either as the other is the reconciliation error §0.5 warns about. **A test that passes with its subject
 reverted is not evidence** — and rows 12–14 are what that rule bought, since all three were
 found inside fixes for earlier rows.
 
