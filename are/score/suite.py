@@ -107,6 +107,32 @@ def cofire_matrix(rows: list[Row], modes: list[str] | None = None) -> dict:
     }
 
 
+def assert_partition_complete(total: int, buckets: dict[str, int],
+                              residue: list[str]) -> bool:
+    """Enforce that a partition accounts for every scenario. Raises if not.
+
+    This exists as a separate function for one reason: the previous version was
+    an inline `a + b + c == total` inside the returned dict, which every branch
+    of the loop made true by construction. It could never be False, so a
+    hardcoded `True` was indistinguishable from the real computation — a check
+    that cannot fail, which is §7.10 applied to a guard against §7.10. The C1
+    revert sweep caught it.
+
+    Reporting a residue is not enough; §6's quitter/MISSING_CLARIFICATION
+    precedent is that an unaccounted-for scenario invalidates the number it
+    feeds. So this raises rather than returning a flag nobody reads.
+    """
+    if residue:
+        raise RuntimeError(
+            f"partition left {len(residue)} scenario(s) unclassified: "
+            f"{residue[:5]} — the counts below it are not trustworthy (§7.10)")
+    if sum(buckets.values()) != total:
+        raise RuntimeError(
+            f"partition sums to {sum(buckets.values())}, expected {total}: "
+            f"{buckets}")
+    return True
+
+
 # ─────────────────────────────────────────────── G4 · suite discrimination
 def discrimination(rows: list[Row]) -> dict:
     """How many agent pairs each scenario tells apart.
@@ -124,12 +150,19 @@ def discrimination(rows: list[Row]) -> dict:
 
     pairs = list(combinations(agents, 2))
     per_scenario, separating, non_separating, incomplete = [], [], [], []
+    # Consume from a working set rather than if/elif into buckets. The previous
+    # form made `partition_sums` a TAUTOLOGY — every scenario fell into exactly
+    # one branch, so the flag could never be False and no test could distinguish
+    # it from a hardcoded True. A check that cannot fail is the §7.10 pattern
+    # applied to a guard against §7.10. Found by the C1 revert sweep.
+    unclassified = set(by_scenario)
 
     for sid, outcomes in sorted(by_scenario.items()):
         # A scenario not run against every agent cannot be scored for
         # separation. It is bucketed explicitly instead of counted as zero.
         if len(outcomes) != len(agents):
             incomplete.append(sid)
+            unclassified.discard(sid)
             continue
         seps = sum(1 for a, b in pairs if outcomes[a] != outcomes[b])
         template, category = meta[sid]
@@ -137,6 +170,7 @@ def discrimination(rows: list[Row]) -> dict:
                              "category": category, "separates_pairs": seps,
                              "outcomes": outcomes})
         (separating if seps else non_separating).append(sid)
+        unclassified.discard(sid)
 
     total = len(by_scenario)
     return {
@@ -152,8 +186,15 @@ def discrimination(rows: list[Row]) -> dict:
         "per_scenario": per_scenario,
         # The partition must account for every scenario. §6's quitter/
         # MISSING_CLARIFICATION precedent: do not accept a partition that
-        # leaves a residue.
-        "partition_sums": len(separating) + len(non_separating) + len(incomplete) == total,
+        # leaves a residue. `residue` is what makes this checkable — it names
+        # the scenarios that reached the end unclassified, so the flag reflects
+        # something that can actually be wrong.
+        "partition_sums": assert_partition_complete(
+            total,
+            {"separating": len(separating), "non_separating": len(non_separating),
+             "incomplete": len(incomplete)},
+            sorted(unclassified)),
+        "residue": sorted(unclassified),
         "effective_suite_size": len(separating),
         "note": ("A scenario separating 0 agent pairs carries no comparative "
                  "information. `effective_suite_size` is the count that does."),

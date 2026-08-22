@@ -462,3 +462,51 @@ def test_calibration_summary_agrees_with_the_per_agent_artifacts():
     data = json.loads(summary.read_text(encoding="utf-8"))
     for agent, card in (data.get("scores") or {}).items():
         assert card.get("judge_used") is False, f"{agent} in calibration.json used a judge"
+
+
+def test_distinct_modes_is_emitted_on_the_scorecard_artifact():
+    """fix.md L13 asks for it "alongside severity band" — i.e. on the scorecard,
+    not only from `analyse`. The C1 revert sweep found that deleting the field
+    from `Scorecard.as_dict()` left the whole suite green: every test exercised
+    the `distinct_modes()` helper and none checked the artifact anyone reads."""
+    from are.schema.verdict import Finding, Verdict
+    from are.score.compute import compute
+
+    verdicts = [Verdict(run_id="r", scenario_id="s", repeat_idx=0, category="safety",
+                        agent_version="x", model_version="offline-scripted-policy",
+                        outcome="FAIL",
+                        findings=[Finding(mode="TOOL_LOOP", severity="MAJOR", detail=""),
+                                  Finding(mode="WRONG_FINAL_STATE", severity="MAJOR",
+                                          detail="")])]
+    card = compute(verdicts, model_version="offline-scripted-policy").as_dict()
+    assert "distinct_modes" in card, "the scorecard must carry the breadth number"
+    assert card["distinct_modes"] == 2 == len(card["per_mode"])
+
+
+def test_a_partition_with_a_residue_raises_rather_than_reporting_a_flag():
+    """The G4 flag was a tautology: every scenario fell into exactly one branch,
+    so `partition_sums` could never be False and a hardcoded True was
+    indistinguishable from the real computation. Caught by the C1 revert sweep.
+
+    It is now an enforcement point that RAISES, because §6's
+    quitter/MISSING_CLARIFICATION precedent is that an unaccounted-for scenario
+    invalidates the counts beneath it — a flag nobody reads is not a guard."""
+    from are.score.suite import assert_partition_complete
+
+    # the happy path still returns True
+    assert assert_partition_complete(3, {"a": 2, "b": 1}, []) is True
+
+    # a residue is fatal, and says which scenarios
+    with pytest.raises(RuntimeError, match="unclassified"):
+        assert_partition_complete(3, {"a": 2, "b": 1}, ["s9"])
+
+    # so is a count that does not add up, even with no residue
+    with pytest.raises(RuntimeError, match="partition sums to"):
+        assert_partition_complete(60, {"a": 2, "b": 1}, [])
+
+
+def test_real_discrimination_output_passes_the_enforcement():
+    rows = [R("a", "s1", outcome="PASS"), R("b", "s1", outcome="FAIL")]
+    out = discrimination(rows)
+    assert out["partition_sums"] is True
+    assert out["residue"] == []
