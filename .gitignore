@@ -6,3 +6,6 @@ runs/
 pool/
 !frozen/
 .revert_backup/
+
+# local secrets — never committed (§7.1: key from env, never in the tree)
+.env.local
