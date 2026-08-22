@@ -39,7 +39,7 @@ this order:
 
 | # | number | what it settles |
 |---|---|---|
-| 1 | **12 of 17** instances of our worst bug were inside the guard against it, not the harness — so all **14 of 14** fixes are revert-verified | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
+| 1 | **13 of 18** instances of our worst bug were inside the guard against it, not the harness — so all **15 of 15** fixes are revert-verified | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
 | 2 | **zero** false positives on `clean` — at most **6.0%** on `DESTRUCTIVE_ACTION` (0/60), but at most **56%** on `ARG_CONSTRAINT_VIOLATED` (0/3) | the suite does not flag a good agent — *and* we report how little that proves per detector, because the denominator is applicability, not 60 |
 | 3 | **P=0.29** on our own refusal heuristic, with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -51,7 +51,7 @@ have made it look twenty times safer. That single row is the whole method in min
 Number 1 is what buys the credibility for 2 and 3.
 
 ---|---|
-| **12 of 17** instances of our worst bug were inside the guard against it — and all **14 of 14** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
+| **13 of 18** instances of our worst bug were inside the guard against it — and all **15 of 15** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
 | **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
 | **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -90,15 +90,15 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
-## Slide 2 — "Twelve of seventeen were in the guard itself"
+## Slide 2 — "Thirteen of eighteen were in the guard itself"
 
 Right after the fingerprint table. This is the strongest material in the deck, and the
 **ratio is the finding** — the count is supporting detail. Lead with this sentence:
 
-> **Twelve of the seventeen times this harness measured the wrong thing, the defect was
+> **Thirteen of the eighteen times this harness measured the wrong thing, the defect was
 > not in the harness — it was in a check written to prevent exactly that.**
 
-That is 71%. Six of the seventeen were found by *running* something, never by re-reading.
+That is 72%. Seven were found by *running* something, never by re-reading.
 
 Because that says something a list of thirteen anecdotes does not: **the bug class is
 self-camouflaging.** A guard against *measuring the wrong thing* fails by measuring the
@@ -117,19 +117,19 @@ and "we were careful" is not evidence. The only rule that survives is **revert-c
 revert the fix, confirm the suite goes red, restore.
 
 **And that is now an empirical result, not a preference.** `scripts/revert_check.py` does
-it mechanically. It found **six of the seventeen** — one inside a fix it had itself just prompted, one in a
+it mechanically. It found **seven of the eighteen** — one inside a fix it had itself just prompted, one in a
 rehearsal checklist that had never been run, and one in the analysis of the judge result
 that proves the tool works. The mechanism caught instances that re-reading the code never did.
 
 **The strongest version, and the one to actually say:** this is not a story about one
 codebase being sloppy. The same mechanism shows up at **three layers** — in the harness's own logic
-(4), in the checks written against it (11), in the demo process (1), and in the analysis of
-the results (1) — seventeen in total, and the buckets are disjoint. Where
+(4), in the checks written against it (11), in the demo process (2), and in the analysis of
+the results (1) — eighteen in total, and the buckets are disjoint. Where
 asking *"is it really done?"* found a real gap three times. Every occurrence has the same
 shape: **verification drifts toward the implementation and away from the requirement.**
 Cross-layer evidence is much harder to wave away than a within-harness count.
 
-> **The number to say out loud: 14 of 14 revert-verified.** Not "253 tests pass". 253
+> **The number to say out loud: 15 of 15 revert-verified.** Not "259 tests pass". 259
 > passing tests is a *reading*; a revert-checked subset is *evidence*. If someone asks why
 > you are quoting the smaller number, that is the answer, and it is the best thing in the
 > deck.
@@ -150,7 +150,7 @@ than back-filled, because inventing them would be its own instance.
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
 | 4 | Regression **and** null | **first** `bash scripts/demo_runs.sh` (builds the three runs), then `are compare runs/p3-v2 runs/p3-v1 --ci` and `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible. `runs/` is gitignored, so a fresh clone has nothing to compare until you build it |
 | 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; two detectors that never fire; top-3 templates are 50% of the suite |
-| 6 | **Twelve of seventeen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 14 of 14 revert-verified — quote that, not 253 |
+| 6 | **Thirteen of eighteen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 15 of 15 revert-verified — quote that, not 259 |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 
 Steps 6 and 7 are the ones people remember. Step 0 decides whether they believe 2–5 at all.
@@ -261,8 +261,8 @@ it is almost entirely narration, which is where the attention should go.
 git clone --branch v1.6-demo <repo> /tmp/rehearse && cd /tmp/rehearse
 pip install -r requirements.txt
 
-python -m pytest -q            # -> 255 passed, 3 SKIPPED   <-- see note
-python scripts/revert_check.py # -> 14/14 revert-verified, tree GREEN
+python -m pytest -q            # -> 256 passed, 3 SKIPPED   <-- see note
+python scripts/revert_check.py # -> 15/15 revert-verified, tree GREEN
 python -m are.cli selftest              # -> exit 0 (3 judge probes SKIPPED)
 python -m are.cli selftest --strict     # -> exit 1, BY DESIGN
 python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox
@@ -277,8 +277,8 @@ bash demo.sh                            # -> exit 0 in 50s
 > **The 3 skips are real and you should know why before someone asks.** A fresh clone has
 > no run artifacts — `runs/` is gitignored — so three tests that read committed artifacts
 > skip loudly. They are *not* the CI or regression claims; those build what they need.
-> After `calibrate` + `analyse` the count is **257 passed, 1 skipped**, and after
-> `gen-targeted` it is **258 passed, 0 skipped**. All three counts were measured.
+> After `calibrate` + `analyse` the count is **258 passed, 1 skipped**, and after
+> `gen-targeted` it is **259 passed, 0 skipped**. All three counts were measured.
 >
 > An earlier version of this checklist said "expect 253 passed". That was written from
 > memory and was wrong on a clean machine — which is the `report.html` bug one level up,

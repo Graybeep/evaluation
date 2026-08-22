@@ -563,9 +563,9 @@ infer success from the absence of a failure signal.**
 
 ### The finding is the ratio, not the count
 
-**Twelve of the seventeen instances below did not live in the harness — they lived in a
-check written to prevent exactly this bug.** That is 71%, and it is the result worth
-stating; "seventeen instances" is only the supporting detail.
+**Thirteen of the eighteen instances below did not live in the harness — they lived in a
+check written to prevent exactly this bug.** That is 72%, and it is the result worth
+stating; "eighteen instances" is only the supporting detail.
 
 **Where the defect lived** — disjoint, and it sums, because a partition that does not is
 this table's own subject matter:
@@ -574,9 +574,9 @@ this table's own subject matter:
 |---|---|---|
 | the harness's own logic | 4 | 1, 2, 9, 17 |
 | **checks and guards written against that logic** | **11** | 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14 |
-| process — the demo script and the rehearsal checklist | 1 | 15 |
+| process — the demo script, the rehearsal checklist, and the rehearsal itself | 2 | 15, 18 |
 | analysis of the results | 1 | 16 |
-| **total** | **17** | |
+| **total** | **18** | |
 
 So the bug class is **self-camouflaging**: a guard against *measuring the wrong thing*
 fails by measuring the wrong thing. Two re-implemented their subject, one regenerated the
@@ -584,8 +584,8 @@ files it was checking and compared them to themselves, one counted receipts with
 checking any said anything, one asserted a tautology, one was *a tautology written to
 replace a tautology*.
 
-**Six were found by running something, never by re-reading it** — rows 12, 13, 14, 15, 16
-and 17. That is the argument for mechanising the rule rather than recommending vigilance.
+**Seven were found by running something, never by re-reading it** — rows 12, 13, 14, 15,
+16, 17 and 18. That is the argument for mechanising the rule rather than recommending vigilance.
 
 ### Two distinct lessons, and they are not the same lesson
 
@@ -609,7 +609,7 @@ from somewhere the implementer's model did not — a real sample, an adversarial
 another person.
 
 **Two severity notes, because subtlety and severity are not correlated here.** Row 17 is
-the only one of the seventeen whose consequence was **credential exposure** rather than a
+the only one of the eighteen whose consequence was **credential exposure** rather than a
 wrong number — and it is among the least conspicuous. And it surfaced only because
 something else was being investigated (whether the key had leaked into a commit). That is
 the fourth time looking for one thing has produced a finding about another.
@@ -643,6 +643,19 @@ mistake.
 | 16 | — | my own **analysis** of the judge run | `0` fabrication markers found | the extractor read `traces.jsonl` expecting a `steps` array; the file is **one step per line**, so it read an empty list every time. `0` nearly published as "the agent never fabricated" when it meant "the reader looked in the wrong place" |
 | 17 | — | `scrub()` **fallback** | no key pattern matched | the fallback was `sk-[A-Za-z0-9]{20,}`, excluding `-` and `_` — so it matched Anthropic-style keys and **missed the gateway keys this repo actually uses online**. The test only ever asserted `sk-ant-` |
 
+| 18 | — | the **first timed rehearsal** | `exit=1` on the regression beat, which is the expected code | `compare` had **crashed** on a missing run directory. FileNotFoundError also exits 1, so the crash was indistinguishable from the real result. Recorded as a pass and nearly moved past |
+
+**Row 18 is the worst one here, and it was nearly excluded.** Every other instance was
+caught *by* checking; this one was almost missed *while* checking, on the discipline this
+whole project rests on. It is the sharpest form of lesson (b) below: **the expected value
+matched, so nothing prompted asking whether the match meant what I thought it meant.** A
+green tick from a broken check is worse than a red one from a working check, and this is
+the only row where the check itself was the thing that broke.
+
+It is here because excluding it would have been an artifact of ordering — the audit was
+declared closed one step before this was found, which is not the same as deciding it does
+not belong. Cost: one more reconciliation pass. Worth it: it is the closing argument.
+
 **Rows 12–15 exist because of the mechanism, not despite it.** All three were found by
 `scripts/revert_check.py` and the coverage sweep that followed it — none by re-reading the
 code. That is the argument for mechanising the rule rather than recommending it: *the
@@ -657,12 +670,12 @@ means. It is recorded instead as what it is — the same reasoning error in the 
 and it is why every command in the running order is now dry-run before shipping. If asked,
 the answer is: same error, different artefact, kept out of the count on purpose.
 
-**Twelve of the seventeen are in a check written to catch exactly this** — instances 3, 4,
-5, 6, 7, 8, 10, 11, 12, 13, 14 and 15. That is the most useful thing in the table: the reflex to check a
+**Thirteen of the eighteen are in a check written to catch exactly this** — instances 3, 4,
+5, 6, 7, 8, 10, 11, 12, 13, 14, 15 and 18. That is the most useful thing in the table: the reflex to check a
 negative survives even while writing the guard against it.
 
 Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
-confirm the suite goes red, restore. `scripts/revert_check.py` runs it over 14 shipped
+confirm the suite goes red, restore. `scripts/revert_check.py` runs it over 15 shipped
 fixes and writes `reports/revert_verified.json`. **A test that passes with its subject
 reverted is not evidence** — and rows 12–14 are what that rule bought, since all three were
 found inside fixes for earlier rows.
@@ -688,8 +701,8 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** Lead with the ratio: **twelve of seventeen instances lived in a check
-written to prevent this bug, and six were found by running something rather than by
+**Say this in the demo.** Lead with the ratio: **thirteen of eighteen instances lived in a check
+written to prevent this bug, and seven were found by running something rather than by
 re-reading it.** The recurring defect was never any one subsystem — it was
 one reasoning error about what a passing check proves, and it is self-camouflaging enough
 to survive inside its own guard. That is why the rule is revert-checking rather than

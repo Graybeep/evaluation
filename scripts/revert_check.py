@@ -94,6 +94,14 @@ MUTATIONS = [
      'sk-[A-Za-z0-9]{20,}',
      "the fallback must redact the key formats this repo actually uses"),
 
+    # Found by a coverage sweep after the rehearsal fix: the newest test had no
+    # driver, so 14/14 was the OLD set with a 15th fix riding along unverified.
+    ("compare-missing-run", "compare: a missing run is a harness problem",
+     "are/cli.py",
+     '        return CI_UNREPORTABLE if getattr(args, "ci", False) else 0',
+     '        return CI_REGRESSION if getattr(args, "ci", False) else 0',
+     "an unreadable run must exit 2 (harness), never 1 (agent regressed)"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {
