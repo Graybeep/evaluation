@@ -5,6 +5,47 @@ preference — it decides which conversation you have afterwards.
 
 ---
 
+## The opening line — use the brief's own number
+
+The brief cites roughly **70% of agent deployments failing in the real world**. That is a
+free opening, because it invites exactly one question and we have the answer:
+
+> **"Which 70%? And how would you know?"**
+
+That is not rhetorical. "70% fail" is a rate; it tells you nothing about *what* failed, so
+it cannot tell you what to fix. The whole platform is an answer to the second half of the
+question, and the defect fingerprint table is the answer in one screen: it does not say
+*that* an agent failed, it says **which failure mode**, on how many scenarios, and — the
+part almost nothing else does — **which modes it could not check at all**.
+
+Say it in this order:
+
+1. *"The brief says ~70% fail. The useful question isn't the rate, it's which ones and how
+   you'd know."*
+2. *"Here are five agents. Four have a defect I chose; the platform isn't told which."*
+   → run `calibrate`
+3. *"It recovers the ranking, names each defect, and where it couldn't check something it
+   says so instead of showing a clean row."*
+
+Point at `confabulator` when you say the last part: one third of its declared fingerprint
+is `UNGROUNDED_CLAIM`, a judge mode, and with the judge off that row reads **NOT
+APPLICABLE**, not a pass. That single row is the difference between a dashboard and a
+measurement, and it is worth more airtime than any score on the screen.
+
+### The three hard numbers to land
+
+A short demo is won on narrative and three numbers, not on item count. These three:
+
+| number | what it settles |
+|---|---|
+| **60 of 60** scenarios separate at least one agent pair, and **zero** false positives on the control | the suite can actually tell agents apart, and does not cry wolf on a good one |
+| **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
+| **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
+
+The third is the one that buys credibility for the first two.
+
+---
+
 ## If there is no API key by demo day
 
 **The offline framing goes on the FIRST slide, not the limitations slide.**
@@ -33,14 +74,26 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
-## Slide 2 — "Nine times this harness measured the wrong thing"
+## Slide 2 — "Eleven times this harness measured the wrong thing"
 
 Right after the fingerprint table. This is the strongest material in the deck, and it is
-strongest told as a pattern rather than as four anecdotes.
+strongest told as a pattern rather than as eleven anecdotes.
 
 The one-line version: **attribution, green tests, and tight confidence intervals each failed
 to catch at least one of these.** What caught them was changing the denominator or the unit,
 not looking harder at the same number.
+
+**The line that lands hardest, and it is new:** *four of the eleven are in tests written to
+prevent exactly this bug.* Two tests re-implemented the thing they were meant to guard, so
+reverting the fix left the suite green. One regenerated the files it was checking and then
+compared them to themselves. One counted receipts without checking any of them said
+anything. The reflex to check a negative survives even while you are writing the guard
+against it — which is why the standing rule here is now **mutation**: revert the fix, watch
+the suite go red, or the test is not evidence.
+
+The full table is CLAUDE.md §7.10, numbered 1–11. Ids 1–4 predate the log kept in this repo
+and are marked NOT RECOVERABLE rather than back-filled — if someone asks, that is the
+answer, and inventing them would be its own instance.
 
 | # | The number said | The truth | Caught by |
 |---|---|---|---|
@@ -92,16 +145,19 @@ the fifth result.
 
 | # | Beat | Command | The point |
 |---|---|---|---|
-| 0 | Framing | — | Offline/online status, up front (see above) |
-| 1 | The harness is the risk surface | `python -m are.cli selftest` | L1–L4, world isolation, judge-attack corpus fired at our own judge, secret scrubbing |
-| 2 | Four agents, defects not disclosed | `python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox` | Ranking recovered; 100% attribution; CI disjointness checked, not eyeballed |
-| 3 | One failure, end to end | open `runs/demo-pushover-v1/report.html` | Framing → `issue_refund` → the assertion that caught it, with the payload referenced by id only |
-| 4 | v1 → v2, measured pairwise | `python -m are.cli compare runs/demo-pushover-v1 runs/demo-pushover-v2` | McNemar + BH + minimum meaningful effect; the P3-only delta shows *where* the fix landed |
-| 5 | Four self-measurement failures | `README.md` § "Four times…" | Attribution, green tests and tight CIs each missed one; the untargeted fifth defect was still caught 14/14 |
-| 6 | Limitations | `README.md` | Split 1a/1b: the online *path* works and is demonstrated; model-attributed *results* are unvalidated (no reportable run; endpoint was Qwen via a third-party router, not Claude). Judge uncalibrated; L3 degraded online; co-design caveat |
+| 0 | **"Which 70%?"** | — | The brief's own number, turned into the question this platform answers. Offline/online status up front (see above) |
+| 1 | The harness is the risk surface | `are selftest` | L1–L4, world isolation, our own injection corpus fired at our own judge, secret scrubbing. Judge probes report **SKIPPED**, not passed |
+| 2 | Five agents, defects not disclosed | `are calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox` | Ranking recovered; the **three-state fingerprint**; point at `confabulator`'s NOT APPLICABLE row |
+| 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
+| 4 | Regression **and** null | `are compare runs/p3-v2 runs/p3-v1 --ci` then `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible |
+| 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; two detectors that never fire; top-3 templates are 50% of the suite |
+| 6 | Eleven times we measured the wrong thing | `CLAUDE.md` §7.10 | Four of the eleven are in tests written to prevent it |
+| 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 
-Steps 5 and 6 are the ones people remember. Step 0 is the one that decides whether they
-believe steps 2–4 at all.
+Steps 6 and 7 are the ones people remember. Step 0 decides whether they believe 2–5 at all.
+
+**If you have 60 seconds, not 3:** step 0, step 2, step 4. The question, the fingerprint,
+the regression-plus-null. Everything else is supporting evidence.
 
 ---
 
