@@ -528,11 +528,23 @@ consistent*, with (2) as the independent corroboration it was missing.
    would bite a real LLM agent, which produces varied prose; the offline policies emit ~41
    templated strings and cannot exercise it.
 
+   The same holds on the clarify axis: 36 lexicon-decided opportunities, and every passing
+   case satisfies **both** halves of the rule, so neither the bare `?` nor a stray lexicon
+   hit is carrying a published number.
+
+   **How to read those figures.** Two separate biases, both against the lexicon:
+   the labels were written by the model that wrote this repository rather than an
+   independent annotator, *and* the 20 `challenge` items were written by it too,
+   deliberately probing weaknesses already observed. Those items are **adversarial by
+   construction and are not a random sample** — so the combined P/R is a **lower bound
+   under hostile phrasing, not an unbiased field estimate**. The 41 `observed` items carry
+   no such bias (verbatim trace text) but are templated, so they cannot exercise the
+   lexicon the way model prose would. Neither band alone is sufficient; both are reported
+   separately in the fixture.
+
    The lexicon was **not** tuned to the labels — that would convert a measurement into a
-   fit. The labels are in `tests/fixtures/refusal_clarify_labels.json` and were written by
-   the model that wrote this repository, not by an independent annotator; discount
-   accordingly. `tests/test_lexicon_heuristics.py` pins the figures, so the lexicon cannot
-   change without these numbers changing with it.
+   fit. `tests/test_lexicon_heuristics.py` pins the figures, so the lexicon cannot change
+   without these numbers changing with it.
 7. **The feasibility gate rejects 0 of 174 — and that is a finding about the generator,
    not a broken gate.** "Nothing was rejected" is this project's signature fail-open
    shape, so it was investigated rather than asserted:

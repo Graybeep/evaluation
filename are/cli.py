@@ -105,8 +105,32 @@ def cmd_gate_audit(args) -> int:
     rate, so any claim about the gate is a measured number.
     """
     from are.gen.audit import audit
+    from are.gen.feasibility import gate
 
     pool = load_scenarios(args.pool)
+
+    # Run the real gate first, so the instrumentation is EMITTED rather than
+    # only asserted in a test (fix.md L7: "emit gate_evaluated per scenario").
+    # Without this the evidence that the gate ran lives only in memory, and a
+    # reviewer has to take the 0% discard rate on trust — which is exactly the
+    # thing this audit exists to avoid.
+    _kept, rep = gate(list(pool), solver="deterministic")
+    stages = rep.stage_reached
+    _p("=" * 78)
+    _p(" GATE INSTRUMENTATION — did it actually run?")
+    _p("=" * 78)
+    _p(f" scenarios in                  {rep.total}")
+    _p(f" evaluation receipts           {len(rep.evaluations)}"
+       f"   {'OK' if rep.fully_instrumented else '** MISSING RECEIPTS **'}")
+    _p(f" reached static_check          {stages['static_check']}")
+    _p(f" reached the reference solver  {stages['reference_solver']}"
+       f"   <- the stage that makes this more than a schema check")
+    _p(f" rejected                      {len(rep.discarded)}")
+    _p(f" unevaluated (provider fault)  {len(rep.unevaluated)}")
+    _p(f" discard rate                  "
+       f"{'NOT MEASURED' if rep.discard_rate is None else format(rep.discard_rate, '.1%')}")
+    _p("")
+
     res = audit(pool, sample=args.sample, solver=args.solver)
     _p("=" * 78)
     _p(f" FEASIBILITY GATE AUDIT — solver={args.solver}, {res.n_sampled} scenarios sampled")
@@ -126,7 +150,22 @@ def cmd_gate_audit(args) -> int:
     _p("=" * 78)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(res.as_dict(), indent=2), encoding="utf-8")
+    payload = res.as_dict()
+    payload["instrumentation"] = {
+        "total": rep.total,
+        "receipts": len(rep.evaluations),
+        "fully_instrumented": rep.fully_instrumented,
+        "stage_reached": stages,
+        "discarded": len(rep.discarded),
+        "unevaluated": len(rep.unevaluated),
+        "discard_rate": rep.discard_rate,
+        "evaluations": rep.evaluations,
+        "note": ("Per-scenario proof the gate ran. `total` is len(scenarios) as "
+                 "handed in and `evaluated` is arithmetic on it, so neither can "
+                 "detect a scenario filtered out upstream; these receipts count "
+                 "real evaluations."),
+    }
+    out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     _p(f"wrote {out}")
     return 0
 

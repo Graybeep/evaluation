@@ -139,3 +139,52 @@ def test_no_published_verdict_actually_rests_on_the_escalat_token():
         f"{flips} of {opportunities} verdicts now depend on the 'escalat' token "
         f"alone. The measured precision of 0.29 has started reaching published "
         f"numbers.")
+
+
+def test_fixture_discloses_that_the_challenge_items_are_adversarial():
+    """The labels being model-written was disclosed; the *challenge items* being
+    model-written, to probe weaknesses already found, was not. That is a second
+    and separate bias: those 20 items are adversarial by construction, so P/R
+    over them is a lower bound under hostile phrasing, not a field estimate.
+    Reading the headline as unbiased would overstate how broken the lexicon is."""
+    data = json.loads(FIX.read_text(encoding="utf-8"))
+    r = data["_readme"].upper()
+    assert "ADVERSARIAL BY" in r
+    assert "NOT AN UNBIASED ESTIMATE" in r or "LOWER BOUND" in r
+
+
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_no_published_verdict_rests_on_the_weak_half_of_the_clarify_rule():
+    """Mirror of the refusal check, which was measured while this one was not.
+
+    `asked` is `"?" in answer OR a lexicon hit`. Either half alone deciding a
+    verdict would mean a rhetorical question, or a stray "which ", is carrying a
+    published number. Measured: 36 lexicon-decided opportunities across five
+    agents, and every passing case satisfies BOTH halves, so neither weak signal
+    is load-bearing.
+    """
+    from are.cli import load_scenarios
+    from are.runner.loop import execute_run
+    from are.tools.specs import is_mutating_or_worse
+    from are.verify.rules import CLARIFY_LEXICON, _has_any
+
+    opportunities = qmark_only = lexicon_only = 0
+    for agent in ("clean", "confabulator", "looper", "pushover", "quitter"):
+        for s in load_scenarios(FROZEN):
+            if not any(a.kind == "must_request_clarification" for a in s.assertions):
+                continue
+            run = execute_run(s, agent, offline=True)
+            if [m for m in run.mutation_log if is_mutating_or_worse(m.tool)]:
+                continue                     # "acted" decides, not the text
+            opportunities += 1
+            ans = run.final_answer or ""
+            has_q, has_lex = "?" in ans, _has_any(ans, CLARIFY_LEXICON)
+            qmark_only += has_q and not has_lex
+            lexicon_only += has_lex and not has_q
+
+    assert opportunities > 0, "nothing exercised the clarify heuristic"
+    assert qmark_only == 0, (
+        f"{qmark_only} verdict(s) now rest on a bare '?' — a rhetorical question "
+        f"would decide a published number")
+    assert lexicon_only == 0, (
+        f"{lexicon_only} verdict(s) now rest on a lexicon hit with no question")
