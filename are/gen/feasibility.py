@@ -46,10 +46,49 @@ class GateReport:
     discarded: list[tuple[str, str]] = field(default_factory=list)   # (id, reason)
     unevaluated: list[tuple[str, str]] = field(default_factory=list)  # provider faults
     solver: str = "deterministic"
+    # One receipt per scenario that actually went through `check()`, recording
+    # which stages ran. See `fully_instrumented` for why this exists.
+    evaluations: list[dict] = field(default_factory=list)
 
     @property
     def evaluated(self) -> int:
         return self.total - len(self.unevaluated)
+
+    @property
+    def fully_instrumented(self) -> bool:
+        """Did EVERY scenario actually reach the gate?
+
+        `total` is `len(scenarios)` as handed in, and `evaluated` is arithmetic
+        on it, so neither can notice a scenario filtered out upstream — the
+        count would simply be smaller and nothing would say so. A 0% discard
+        rate over a set that quietly lost half its members reads identically to
+        one over the full set.
+
+        This counts actual receipts instead: it is the positive condition
+        (§7.10), and `gate()` refuses to return a report where it is False.
+
+        A receipt must also carry EVIDENCE that a stage ran. Counting bare
+        receipts was the first version of this and it was too weak: `gate()`
+        appends one per iteration whether or not `check` filled it in, so a
+        `check` that evaluated nothing still produced a full set. Requiring
+        `static_checked` makes the receipt prove something.
+        """
+        return (len(self.evaluations) == self.total
+                and all(e.get("static_checked") for e in self.evaluations))
+
+    @property
+    def stage_reached(self) -> dict:
+        """How many scenarios each stage of the gate actually examined.
+
+        The distinction that matters for reading a 0% discard rate: "the
+        reference solver ran and approved it" and "static_check passed so the
+        solver never had to" are different findings.
+        """
+        return {
+            "static_check": sum(1 for e in self.evaluations if e.get("static_checked")),
+            "reference_solver": sum(1 for e in self.evaluations if e.get("solver_ran")),
+            "llm_solver": sum(1 for e in self.evaluations if e.get("llm_solver_ran")),
+        }
 
     @property
     def discard_rate(self) -> float | None:
@@ -212,22 +251,42 @@ def llm_solve(s: Scenario, cache_mode: str = "off") -> RunResult:
 
 # ------------------------------------------------------------------- the gate
 def check(s: Scenario, solver: str = "deterministic",
-          cache_mode: str = "off") -> tuple[bool | None, str]:
+          cache_mode: str = "off", receipt: dict | None = None) -> tuple[bool | None, str]:
     """Returns (kept, reason). `None` means UNEVALUATED — a provider fault, not a verdict
-    about the scenario. Callers must bucket those separately from real rejections."""
+    about the scenario. Callers must bucket those separately from real rejections.
+
+    `receipt`, when given, is filled in with which stages actually ran for this
+    scenario. It is an out-param rather than a third return value so the
+    existing two-tuple callers keep working unchanged.
+    """
+    if receipt is not None:
+        receipt.update(scenario_id=s.id, template_id=s.template_id,
+                       static_checked=False, solver_ran=False, llm_solver_ran=False,
+                       rejected_at=None)
+
     reason = static_check(s)
+    if receipt is not None:
+        receipt["static_checked"] = True
     if reason:
+        if receipt is not None:
+            receipt["rejected_at"] = "static_check"
         return False, f"static: {reason}"
 
     run = deterministic_solve(s)
     v = verify(s, run)
+    if receipt is not None:
+        receipt["solver_ran"] = True
     if v.outcome != "PASS":
         modes = ", ".join(f"{f.mode}:{f.detail[:60]}" for f in v.findings) or v.invalid_reason
+        if receipt is not None:
+            receipt["rejected_at"] = "reference_solver"
         return False, f"unsolvable by reference plan ({modes})"
 
     if solver in ("llm", "both") and api_key_present():
         lrun = llm_solve(s, cache_mode=cache_mode)
         lv = verify(s, lrun)
+        if receipt is not None:
+            receipt["llm_solver_ran"] = True
         if lv.outcome == "INVALID":
             # A provider fault is not evidence about the scenario. Counting a 502 as
             # "unsolvable" would let gateway instability masquerade as a discard rate —
@@ -235,6 +294,8 @@ def check(s: Scenario, solver: str = "deterministic",
             return None, f"solver unevaluated (provider fault): {lrun.harness_error}"
         if lv.outcome != "PASS":
             modes = ", ".join(f.mode for f in lv.findings)
+            if receipt is not None:
+                receipt["rejected_at"] = "llm_solver"
             return False, f"llm solver could not satisfy assertions ({modes})"
     return True, "ok"
 
@@ -244,7 +305,11 @@ def gate(scenarios: list[Scenario], solver: str = "deterministic",
     rep = GateReport(total=len(scenarios), solver=solver)
     kept: list[Scenario] = []
     for s in scenarios:
-        ok, why = check(s, solver=solver, cache_mode=cache_mode)
+        receipt: dict = {}
+        ok, why = check(s, solver=solver, cache_mode=cache_mode, receipt=receipt)
+        receipt["outcome"] = ("unevaluated" if ok is None else
+                              "kept" if ok else "discarded")
+        rep.evaluations.append(receipt)
         if ok is None:
             rep.unevaluated.append((s.id, why))
             s.feasible = True          # not judged; do not silently drop it
@@ -255,4 +320,12 @@ def gate(scenarios: list[Scenario], solver: str = "deterministic",
         else:
             rep.discarded.append((s.id, why))
     rep.kept = len(kept)
+    # A gate that never rejects is indistinguishable from `return True` unless
+    # you can show it ran. This is that proof, and it is an assertion rather
+    # than a log line because a missing receipt must not be survivable.
+    if not rep.fully_instrumented:
+        raise RuntimeError(
+            f"feasibility gate is not fully instrumented: {len(rep.evaluations)} "
+            f"evaluation receipts for {rep.total} scenarios. A scenario reached "
+            f"acceptance without being evaluated (§7.10).")
     return kept, rep

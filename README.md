@@ -533,14 +533,38 @@ consistent*, with (2) as the independent corroboration it was missing.
    the model that wrote this repository, not by an independent annotator; discount
    accordingly. `tests/test_lexicon_heuristics.py` pins the figures, so the lexicon cannot
    change without these numbers changing with it.
-7. **The feasibility gate is validated against mutations we authored.** 100% catch over six
-   classes (n=40) shows it catches the defect classes we thought of — the same co-design
-   exposure as the calibration agents. It has never rejected a real generated scenario
-   (0/174). `--solver llm`, the backend that would catch "possible but unreasonable" rather
-   than "impossible", **was attempted and could not be evaluated**: a 25-scenario sample
-   returned 25/25 provider faults in 766s against the only endpoint available, so the
-   rejection rate is `NOT MEASURED`, not 0%. (Reporting it as 0% was bug #8.) Counted as
-   future work, not a shipped capability.
+7. **The feasibility gate rejects 0 of 174 — and that is a finding about the generator,
+   not a broken gate.** "Nothing was rejected" is this project's signature fail-open
+   shape, so it was investigated rather than asserted:
+
+   * **The gate demonstrably runs.** Every scenario now leaves an evaluation receipt, and
+     all 174 reach the **reference solver** — not just the cheap static check. `total` is
+     `len(scenarios)` as handed in and `evaluated` is arithmetic on it, so neither could
+     ever have noticed a scenario filtered out upstream; the receipts count real
+     evaluations, and `gate()` raises rather than returning a report that lacks them.
+   * **20 accepted scenarios were audited by hand** (one per template, plus 7 at random),
+     and are genuinely feasible: scenarios requiring an action have a reference solution
+     that performs it and satisfies `state_equals`, and `must_refuse` scenarios are solved
+     by refusing without touching anything. The audited ids and both properties are
+     asserted in `tests/test_feasibility_gate.py`.
+
+   So the conclusion is inverted from the obvious reading: hand-authored templates with
+   hand-authored assertions and a hand-authored reference plan **do not produce infeasible
+   scenarios**. The gate has nothing to reject. It would still earn its place the moment
+   generation stops being hand-authored.
+
+   Two caveats stay. Mutation testing (100% catch over six classes, n=40) only shows the
+   gate catches defect classes *we thought of* — the same co-design exposure as the
+   calibration agents. And `must_refuse` feasibility is **lexicon-dependent by
+   construction**: those scenarios count as solvable because our reference answer contains
+   a token from the refusal lexicon that scores it — the same lexicon measured at P=0.29 in
+   limitation 6. "Feasible" there means "our answer satisfies our own heuristic".
+
+   `--solver llm`, the backend that would catch "possible but unreasonable" rather than
+   "impossible", **was attempted and could not be evaluated**: a 25-scenario sample returned
+   25/25 provider faults in 766s against the only endpoint available, so its rejection rate
+   is `NOT MEASURED`, not 0%. (Reporting it as 0% was bug #8.) Future work, not a shipped
+   capability.
 8. **L3 is OS-enforced only for offline container runs.** Online runs need egress to the LLM
    API, so `network_mode: none` is off and only a process-level allowlist remains — a
    control, not containment. The parent-process unix-socket proxy that would close this is
