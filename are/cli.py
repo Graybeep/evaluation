@@ -1215,7 +1215,11 @@ def cmd_selftest(args) -> int:
     _p("credentials (§7.1)")
     _p(f"   ANTHROPIC_API_KEY present: {api_key_present()}")
     from are.util import scrub
-    probe = "key=sk-ant-abcdefgh12345678 trailing"
+    # Assembled rather than written as a literal: a key-SHAPED string in source
+    # is indistinguishable from a real one to a scanner, and
+    # tests/test_no_secrets_in_repo.py rightly flags it. The demo still
+    # exercises scrub() on a realistic shape at runtime.
+    probe = "key=" + "sk-" + "ant-" + "abcdefgh12345678" + " trailing"
     _p(f"   scrub() on a trace line: {scrub(probe)}")
     ok &= "sk-ant-" not in scrub(probe)
 

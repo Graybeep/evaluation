@@ -102,6 +102,18 @@ MUTATIONS = [
      '        return CI_REGRESSION if getattr(args, "ci", False) else 0',
      "an unreadable run must exit 2 (harness), never 1 (agent regressed)"),
 
+    # Took three attempts, and the failures are instructive. (1) Removing ONE of
+    # three overlapping patterns left the suite green — correctly, since the
+    # others still matched: a mutation that removes redundancy rather than
+    # capability proves nothing. (2) `_KEY_PATTERNS = [] or [...]` evaluates to
+    # the second list, so it was a silent no-op that LOOKED like a mutation —
+    # the same shape as everything else in §7.10, in the tool that exists to
+    # catch it. Only the third actually empties the list.
+    ("secret-scan-teeth", "repo secret scan can actually fail", "are/util.py",
+     "_KEY_PATTERNS = [",
+     "_KEY_PATTERNS = []" + LF + "_UNUSED_PATTERNS = [",
+     "with no patterns, a clean repo scan is indistinguishable from a repo full of keys"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {
