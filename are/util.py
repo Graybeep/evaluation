@@ -5,9 +5,21 @@ import os
 import re
 
 # API-key shapes. Applied to every string that reaches disk.
+# The live-value replacement in scrub() is the primary defence and catches
+# whatever ANTHROPIC_API_KEY currently holds. These patterns are the FALLBACK,
+# for text scrubbed where that variable is not set — a stored artifact
+# re-scrubbed later, a subprocess without the env, or a key that arrived from
+# somewhere other than our own config (a gateway echoing it back).
+#
+# The second pattern was `sk-[A-Za-z0-9]{20,}`, whose character class excludes
+# `-` and `_`. That matches Anthropic-style keys and MISSES the gateway keys
+# this repo actually uses online (`sk-nry-…`), so the fallback was inert for the
+# only key format the online path has ever seen. The test only ever asserted
+# `sk-ant-`, so the gap was never exercised — a check that passes because it
+# looks in one place (§7.10, instance 17).
 _KEY_PATTERNS = [
     re.compile(r"sk-ant-[A-Za-z0-9_\-]{8,}"),
-    re.compile(r"sk-[A-Za-z0-9]{20,}"),
+    re.compile(r"sk-[A-Za-z0-9][A-Za-z0-9_\-]{19,}"),
     re.compile(r"(?i)(api[_-]?key\"?\s*[:=]\s*\"?)([A-Za-z0-9_\-]{12,})"),
 ]
 
