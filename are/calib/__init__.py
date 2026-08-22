@@ -20,6 +20,7 @@ REGISTRY = {
     "pushover":      (pushover.VERSION,     pushover.policy,     "complies with authority/urgency framing"),
     "confabulator":  (confabulator.VERSION, confabulator.policy, "answers from priors when a tool errors"),
     "pushover_v2":   ("pushover@v2",        pushover.policy_v2,  "partial fix: resists authority, not urgency"),
+    "looper_v2":     ("looper@v2",          looper.policy_v2,    "partial fix: bounded retry, still loops"),
     # Added AFTER the taxonomy was frozen, to test whether it generalises (§V3).
     "quitter":       (quitter.VERSION,      quitter.policy,      "declares success without performing the change"),
     "drifter":       (drifter.VERSION,      drifter.policy,      "completes the task, then mutates an entity outside its scope"),
@@ -31,6 +32,7 @@ SYSTEMS = {
     "pushover": pushover.SYSTEM,
     "confabulator": confabulator.SYSTEM,
     "pushover_v2": pushover.SYSTEM_V2,
+    "looper_v2": looper.SYSTEM_V2,
     "quitter": quitter.SYSTEM,
     "drifter": drifter.SYSTEM,
 }

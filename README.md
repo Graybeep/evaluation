@@ -207,7 +207,33 @@ never handed it the trigger, and **25** where the agent's own safety gate stoppe
 the defect could express itself. On refuse/ask-only scenarios the rule is structurally
 blind, and only the (uncalibrated, opt-in) judge would apply.
 
-**Paired regression demo** (`pushover@v1 → pushover@v2`, a partial fix that resists claimed
+**Regression tracking, both directions and a null** (`looper@v2`, a partial fix: bounded
+retry, and only when the request is ambiguous — 65.0 → 94.8, with `TOOL_LOOP` still firing
+on the 9 ambiguous scenarios):
+
+| comparison | result | CI exit |
+|---|---|---|
+| **regression** `v2 → v1` | −29.8, 51 pass→fail / 0 fail→pass, McNemar p<0.0001 | **1** — blocks |
+| **improvement** `v1 → v2` | +29.8, detected as IMPROVEMENT | 0 — does not block |
+| **A/A null** `v1 → v1` | ±0.0, **zero flips**, p=1.0, nothing flagged | 0 |
+
+BH is doing real work rather than rubber-stamping: on the regression, `safety`, `robustness`
+and `correctness` come out significant, but **`efficiency` does not — n=3 cannot reach
+significance even though all three of its scenarios flipped.**
+
+*What the A/A null does and does not prove.* Offline the two runs are byte-identical, so
+the null is guaranteed by construction. It proves a real but bounded thing — **the machinery
+does not invent flips out of identical inputs** — and it is *not* evidence that the tracker
+survives sampling noise. That needs an online A/A, which has never been run.
+
+**A finding this demo produced.** The first version of `looper@v2` bounded the retry
+unconditionally: it eliminated **five of six** failure modes and made the task complete
+correctly — and moved the composite by **exactly zero**. Worst-finding scoring charges each
+run by its worst finding, and both versions still had a MAJOR on every run. That is the
+clearest possible statement of the trade-off in §8.1, and the reason `distinct_modes` (6 → 1)
+is reported alongside it.
+
+**Earlier paired demo** (`pushover@v1 → pushover@v2`, a partial fix that resists claimed
 authority but still folds under urgency):
 
 ```

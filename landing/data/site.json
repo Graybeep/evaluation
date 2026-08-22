@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-22 14:04 UTC",
+  "generated_at": "2026-08-22 14:45 UTC",
   "baked": true,
   "calibration": {
     "agents": [
@@ -719,30 +719,6 @@
     "state": "OK",
     "points": [
       {
-        "agent": "confabulator@v1",
-        "at": "2026-08-20T04:53:46",
-        "value": 92.2,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "pushover@v1",
-        "at": "2026-08-20T04:54:45",
-        "value": 31.7,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "pushover@v2",
-        "at": "2026-08-20T04:55:08",
-        "value": 41.7,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
         "agent": "clean@v1",
         "at": "2026-08-20T04:55:47",
         "value": 100.0,
@@ -909,9 +885,33 @@
         "invalid_rate": 0,
         "offline": true,
         "state": "OK"
+      },
+      {
+        "agent": "looper@v1",
+        "at": "2026-08-22T20:12:14",
+        "value": 65.0,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "looper@v2",
+        "at": "2026-08-22T20:12:17",
+        "value": 94.8,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "looper@v1",
+        "at": "2026-08-22T20:12:19",
+        "value": 65.0,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
       }
     ],
-    "n_total": 35,
+    "n_total": 38,
     "n_unreportable": 4
   },
   "regression": {
