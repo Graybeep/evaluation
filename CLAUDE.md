@@ -663,7 +663,7 @@ the answer is: same error, different artefact, kept out of the count on purpose.
 negative survives even while writing the guard against it.
 
 Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
-confirm the suite goes red, restore. `scripts/revert_check.py` runs it over 12 shipped
+confirm the suite goes red, restore. `scripts/revert_check.py` runs it over 14 shipped
 fixes and writes `reports/revert_verified.json`. **A test that passes with its subject
 reverted is not evidence** — and rows 12–14 are what that rule bought, since all three were
 found inside fixes for earlier rows.

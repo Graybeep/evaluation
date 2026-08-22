@@ -192,7 +192,7 @@ five scorecards are reportable. (Online is a different story: see Limitations 1.
 
 ### How the tests here are validated
 
-**12 of 12 shipped fixes are revert-verified.** That is the number to read, not the test
+**14 of 14 shipped fixes are revert-verified.** That is the number to read, not the test
 total: a passing suite is a *reading*, a revert-checked fix is *evidence*.
 
 ```bash

@@ -83,6 +83,17 @@ MUTATIONS = [
      ']',
      "the co-fire matrix must cover the agents the C1/P2 cross-check needs"),
 
+    ("judge-version-provenance", "judge_version reflects client state",
+     "are/verify/judge.py",
+     '    model = MODELS.get("judge") or "unavailable"',
+     '    model = "unavailable"',
+     "a status string must not say 'unavailable' while a judge is configured"),
+
+    ("scrub-gateway-key", "scrub fallback covers gateway keys", "are/util.py",
+     'sk-[A-Za-z0-9][A-Za-z0-9_\-]{19,}',
+     'sk-[A-Za-z0-9]{20,}',
+     "the fallback must redact the key formats this repo actually uses"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {
