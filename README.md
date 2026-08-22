@@ -205,9 +205,10 @@ its helper while the artifact everyone reads went unchecked. A follow-up sweep o
 tests *that run had just produced* found a third: a tautology test written to replace a
 tautology.
 
-That is why the rule is mechanised rather than recommended. Eight of the fifteen instances
-in CLAUDE.md §7.10 are in code written to prevent that exact bug, and mechanical checks
-found four of them — including one in a rehearsal checklist that had never been executed.
+That is why the rule is mechanised rather than recommended. Nine of the seventeen instances
+in CLAUDE.md §7.10 are in code written to prevent that exact bug, and five were found by
+*running* something rather than re-reading it — including one in a rehearsal checklist
+that had never been executed, and one in the analysis of the judge run itself.
 
 ### Throughput, and what "at scale" means here
 
@@ -664,11 +665,23 @@ plus the checks in this repo pin the figures each item quotes.
    online ordering signal obtained came from a 12.5%-invalid run and is logged as a
    hypothesis, not a finding.
 
-1c. **The LLM judge is uncalibrated and has never run.** No human-labelled agreement study,
-   so no κ is reported — and a κ computed against labels produced by Claude would be
-   circular, since the judge is Claude. Judge-derived findings are marked *LLM-judged,
-   unvalidated* wherever they appear, and `--judge` is opt-in. Cutting it entirely and
-   reporting rule-based modes only is a supported, more defensible configuration. Cohen's κ
+1c. **The LLM judge has now run — and is still uncalibrated.** Both halves matter.
+
+   *What was verified (2026-08-23).* Against `router.bynara.id` serving
+   `qwen-3.8-max-free` — **not Claude**, provenance unverified like every gateway run here:
+   all three §7.2 injection probes **held**, each with `control_flagged=True` (the control
+   fabrication was detected, so the test could discriminate — bug #9 was a version where it
+   could not). Confirmed live by counting 4 calls, not inferred from the absence of an
+   error. On an 8-scenario run it caught **3 of 3** fabrications, and flagged one more the
+   rules structurally cannot see (see limitation 16).
+
+   *What is still not established, and does not become established by a good result.* No
+   human-labelled agreement study was run, so **no κ is reported** — and a κ against labels
+   produced by Claude would be circular, since the judge is Claude by default. One
+   endpoint, one model whose identity rests on the router's own echo, 3 probes and 8
+   scenarios. Judge findings remain marked *LLM-judged, unvalidated* wherever they appear,
+   `--judge` remains opt-in and off by default, and cutting it entirely and reporting
+   rule-based modes only is still a supported, more defensible configuration. Cohen's κ
    with a bootstrap CI is implemented and waiting on human labels.
 2. **Scenarios come from 13 hand-authored templates.** Coverage is bounded by template
    imagination, not by the real failure distribution.
@@ -848,6 +861,19 @@ plus the checks in this repo pin the figures each item quotes.
     than passing silently. The agent's prompt is wrapped as `<agent_prompt>` **data**, for
     the same reason §7.2 wraps traces for the judge: it comes from whoever is being
     evaluated, and it is being handed to our model.
+
+16. **A known defect in a calibration agent is deliberately left unfixed.** `REFUSAL` in
+    `are/calib/base.py` says *"…declining and escalating instead"* on scenarios where no
+    `escalate_ticket` call occurs — an ungrounded claim produced by our own test agent. The
+    live judge found it; no rule does, because the `FABRICATION` marker tracks only the
+    scripted fabrication branch and this arises on the refusal path.
+
+    It stays unfixed for two reasons, both recorded in
+    `reports/KNOWN_DEFECT_refusal_string.md`: changing agent behaviour would move every
+    published calibration number and force a re-freeze, and fixing it would delete the
+    clearest demonstration in this repository that the judge sees something the rules
+    cannot. `tests/test_judge_found_defect.py` pins all three parts, so it cannot be
+    quietly tidied away later.
 
 ---
 
