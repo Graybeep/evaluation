@@ -34,11 +34,24 @@ measurement, and it is worth more airtime than any score on the screen.
 
 ### The three hard numbers to land
 
-A short demo is won on narrative and three numbers, not on item count. These three:
+A short demo is won on narrative and three numbers, not on item count. These three, in
+this order:
 
-| number | what it settles |
-|---|---|
-| **6 of 13** instances of our worst bug were inside the guard against it — and **10 of 10** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
+| # | number | what it settles |
+|---|---|---|
+| 1 | **8 of 15** instances of our worst bug were inside the guard against it — mechanical checks found 4 — so all **12 of 12** fixes are revert-verified | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
+| 2 | **zero** false positives on `clean` — at most **6.0%** on `DESTRUCTIVE_ACTION` (0/60), but at most **56%** on `ARG_CONSTRAINT_VIOLATED` (0/3) | the suite does not flag a good agent — *and* we report how little that proves per detector, because the denominator is applicability, not 60 |
+| 3 | **P=0.29** on our own refusal heuristic, with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
+
+**Number 2 is the one to slow down on.** "Zero false positives" is the reassuring headline;
+the honest half is the second clause. `ARG_CONSTRAINT_VIOLATED` at 0/3 is *at most 56%* —
+with three applicable scenarios you know almost nothing, and dividing by 60 instead would
+have made it look twenty times safer. That single row is the whole method in miniature.
+
+Number 1 is what buys the credibility for 2 and 3.
+
+---|---|
+| **8 of 15** instances of our worst bug were inside the guard against it — and all **12 of 12** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
 | **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
 | **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -77,13 +90,13 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
-## Slide 2 — "Six of thirteen were in the guard itself"
+## Slide 2 — "Eight of fifteen were in the guard itself"
 
 Right after the fingerprint table. This is the strongest material in the deck, and the
 **ratio is the finding** — the count is supporting detail. Lead with this sentence:
 
-> **Six of the thirteen times this harness measured the wrong thing were in code written
-> to prevent exactly that.**
+> **Eight of the fifteen times this harness measured the wrong thing were in code
+> written to prevent exactly that — and mechanical checks found four of them.**
 
 Because that says something a list of thirteen anecdotes does not: **the bug class is
 self-camouflaging.** A guard against *measuring the wrong thing* fails by measuring the
@@ -93,22 +106,31 @@ wrong thing —
 * one **regenerated the files it was checking**, then compared them to themselves;
 * one **counted receipts** without checking any of them said anything;
 * one asserted a **tautology** — a partition that could never fail to sum;
-* one tested the **helper** while the artifact everyone reads went unchecked.
+* one tested the **helper** while the artifact everyone reads went unchecked;
+* and one was **a tautology test written to replace a tautology** — found only by running
+  a coverage sweep over the tests the revert-check had just produced.
 
 The guard adopts the failure mode of the thing it guards. So vigilance is not a strategy,
 and "we were careful" is not evidence. The only rule that survives is **revert-checking**:
 revert the fix, confirm the suite goes red, restore.
 
 **And that is now an empirical result, not a preference.** `scripts/revert_check.py` does
-it mechanically. On its first run it caught two of the six above — in fixes that had
-already shipped green.
+it mechanically. It found **four of the eight** — including one inside a fix it had itself
+just prompted, and one in the rehearsal checklist that had never been run. The mechanism caught instances that re-reading the code never did.
 
-> **The number to say out loud: 10 of 10 revert-verified.** Not "250 tests pass". 250
+**The strongest version, and the one to actually say:** this is not a story about one
+codebase being sloppy. The same mechanism shows up at **three layers** — in the harness
+(11), in the guards written against it (4), and in this session's own review process, where
+asking *"is it really done?"* found a real gap three times. Every occurrence has the same
+shape: **verification drifts toward the implementation and away from the requirement.**
+Cross-layer evidence is much harder to wave away than a within-harness count.
+
+> **The number to say out loud: 12 of 12 revert-verified.** Not "253 tests pass". 253
 > passing tests is a *reading*; a revert-checked subset is *evidence*. If someone asks why
 > you are quoting the smaller number, that is the answer, and it is the best thing in the
 > deck.
 
-If asked what the gaps in the old numbering were: the table is now sequential 1–13, and
+If asked what the gaps in the old numbering were: the table is now sequential 1–14, and
 ids 1–4 predate the build log kept in this repo. They are marked **not recoverable** rather
 than back-filled, because inventing them would be its own instance.
 
@@ -124,7 +146,7 @@ than back-filled, because inventing them would be its own instance.
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
 | 4 | Regression **and** null | `are compare runs/p3-v2 runs/p3-v1 --ci` then `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible |
 | 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; two detectors that never fire; top-3 templates are 50% of the suite |
-| 6 | **Six of thirteen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 10 of 10 revert-verified — quote that, not 250 |
+| 6 | **Eight of fifteen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 12 of 12 revert-verified — quote that, not 253 |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 
 Steps 6 and 7 are the ones people remember. Step 0 decides whether they believe 2–5 at all.
@@ -210,3 +232,63 @@ it is much stronger than either "we ran it online" or "we never tried".
 **"Can this block a merge?"**
 No, by design. Nothing in `score/` returns a gate decision. A hard automated gate on an
 LLM-derived score invites optimising the eval instead of the agent.
+
+
+---
+
+## Rehearsal checklist
+
+check.md reserves the final block for this, and it is not padding: every failure in this
+project's history is something that looked fine until it was executed.
+
+**Run the deck end to end, from a clean shell, before demo day.** Not read — *run*.
+
+**Executed 2026-08-22 against a fresh clone at `v1.6-demo`.** Every line below is a
+recorded result, not an expectation — and executing it corrected the first one, which had
+been written from memory rather than measured.
+
+```bash
+git clone --branch v1.6-demo <repo> /tmp/rehearse && cd /tmp/rehearse
+pip install -r requirements.txt
+
+python -m pytest -q            # -> 250 passed, 3 SKIPPED   <-- see note
+python scripts/revert_check.py # -> 12/12 revert-verified, tree GREEN
+python -m are.cli selftest              # -> exit 0 (3 judge probes SKIPPED)
+python -m are.cli selftest --strict     # -> exit 1, BY DESIGN
+python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox
+                                        # -> exit 0, ACCEPTANCE: PASS
+python -m are.cli analyse               # -> exit 0
+python -m are.cli report runs/calib-pushover        # -> exit 0, writes report.html
+python -m are.cli compare runs/p3-v2 runs/p3-v1 --ci   # -> exit 1  (regression)
+python -m are.cli compare runs/p3-v1 runs/p3-v1b --ci  # -> exit 0  (A/A null)
+bash demo.sh                            # -> exit 0 in 50s
+```
+
+> **The 3 skips are real and you should know why before someone asks.** A fresh clone has
+> no run artifacts — `runs/` is gitignored — so three tests that read committed artifacts
+> skip loudly. They are *not* the CI or regression claims; those build what they need.
+> After `calibrate` + `analyse` the count is **252 passed, 1 skipped**, and after
+> `gen-targeted` it is **253 passed, 0 skipped**. All three counts were measured.
+>
+> An earlier version of this checklist said "expect 253 passed". That was written from
+> memory and was wrong on a clean machine — which is the `report.html` bug one level up,
+> and is exactly why this block now records executed output instead of expectations.
+
+**Three things that will bite if you skip this:**
+
+1. **`selftest --strict` exits 1** on a keyless checkout. That is correct and documented,
+   but it looks like a failure on a projector. Use plain `selftest`, and if someone spots
+   the flag, the answer is one sentence: *an unrun security check is not a passing one.*
+2. **Step 3 needs `report` run first.** `calibrate` writes verdicts; `report` renders them.
+   This exact assumption already broke the running order once.
+3. **With a live key, `selftest` reports L3 degraded.** Also correct (§7.9) — egress deny
+   cannot be on when you need egress. Say it before anyone asks.
+
+**Time the whole thing.** The 3-minute order is a claim; make it a measurement. If you are
+over, the 60-second cut is steps 0, 2 and 4 — the question, the fingerprint, the
+regression-plus-null.
+
+**Rehearse the two questions you least want.** *"Isn't the control at 100 because you wrote
+both sides?"* and *"Your judge has never run — why should I trust the oracle?"* Both have
+honest answers already written in the §"Questions" section below. Say them out loud once;
+the answers are good, and they only sound good if they are not being improvised.

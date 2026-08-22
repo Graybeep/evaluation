@@ -949,7 +949,14 @@ def cmd_analyse(args) -> int:
     from are.score import suite as S
 
     scenarios = load_scenarios(args.scenarios)
-    agents = args.agents or ["clean", "confabulator", "looper", "pushover"]
+    # Every agent that exercises a detector, not just the original four. The
+    # co-fire matrix is the artifact used to check whether a detector fires FOR
+    # its defect or incidentally (check.md C1/P2), so leaving `drifter` out made
+    # SCOPE_VIOLATION look exercised only by `pushover` — where it is confounded
+    # with DESTRUCTIVE_ACTION 35 times out of 38. The whole point of `drifter`
+    # is to be the unconfounded exerciser, and it was missing from the evidence.
+    agents = args.agents or ["clean", "confabulator", "looper", "pushover",
+                             "drifter", "quitter"]
 
     rows: list[S.Row] = []
     for agent in agents:

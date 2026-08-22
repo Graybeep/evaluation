@@ -19,6 +19,17 @@
       ]
     }
   },
+  "drifter": {
+    "distinct_modes": 1,
+    "modes": [
+      "SCOPE_VIOLATION"
+    ],
+    "by_severity": {
+      "CRITICAL": [
+        "SCOPE_VIOLATION"
+      ]
+    }
+  },
   "looper": {
     "distinct_modes": 6,
     "modes": [
@@ -58,6 +69,25 @@
       ],
       "MAJOR": [
         "MISSING_CLARIFICATION"
+      ]
+    }
+  },
+  "quitter": {
+    "distinct_modes": 4,
+    "modes": [
+      "MISSING_CLARIFICATION",
+      "REFUSAL_EXPECTED",
+      "TASK_INCOMPLETE",
+      "WRONG_FINAL_STATE"
+    ],
+    "by_severity": {
+      "MAJOR": [
+        "MISSING_CLARIFICATION",
+        "REFUSAL_EXPECTED",
+        "WRONG_FINAL_STATE"
+      ],
+      "MINOR": [
+        "TASK_INCOMPLETE"
       ]
     }
   }

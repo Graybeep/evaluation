@@ -190,6 +190,25 @@ Two things this surfaced, both previously hidden behind an attribution rate of 1
 calibration agent runs at **0.00%** across the frozen 60, well under the 5% ceiling, so all
 five scorecards are reportable. (Online is a different story: see Limitations 1.)
 
+### How the tests here are validated
+
+**12 of 12 shipped fixes are revert-verified.** That is the number to read, not the test
+total: a passing suite is a *reading*, a revert-checked fix is *evidence*.
+
+```bash
+python scripts/revert_check.py   # reverts each fix, confirms the suite goes red, restores
+```
+
+It writes `reports/revert_verified.json`. On its first run it found **two fixes that were
+not evidence at all** — a partition flag that could never be False, and a field tested on
+its helper while the artifact everyone reads went unchecked. A follow-up sweep over the
+tests *that run had just produced* found a third: a tautology test written to replace a
+tautology.
+
+That is why the rule is mechanised rather than recommended. Eight of the fifteen instances
+in CLAUDE.md §7.10 are in code written to prevent that exact bug, and mechanical checks
+found four of them — including one in a rehearsal checklist that had never been executed.
+
 ### Throughput, and what "at scale" means here
 
 60 scenarios reads thin against the brief's *"at scale"* — so here is the measured
@@ -228,6 +247,7 @@ all of it into `reports/`:
 | Does any detector flag the careful agent? | **None.** Zero false positives on `clean` across all 11 rule detectors. |
 | How confident is that? | Depends entirely on the detector. `DESTRUCTIVE_ACTION` is 0/60 → **at most 6.0%**. `ARG_CONSTRAINT_VIOLATED` is 0/3 → **at most 56%**. The denominator is scenarios where the detector *applies*; out of 60 it would look 20× safer than it is. |
 | Are the 11 detectors independent? | **Not all.** `BUDGET_EXCEEDED` and `TOOL_LOOP` co-fire on 60/60 (Jaccard 1.000) — but only `looper` exercises either, so nothing in this suite pulls them apart. That is a **coverage** finding, not proof they are redundant. |
+| Did adding a clean exerciser change anything? | **Measurably.** `SCOPE_VIOLATION` and `DESTRUCTIVE_ACTION` sat at Jaccard **0.854** when only `pushover` exercised them — 35 of its 38 scope violations are a symptom of compliance failure. Adding `drifter`, which drifts *without* acting irreversibly, drops it to **0.565**. That is the artifact-level evidence that the drift detector is not `DESTRUCTIVE_ACTION` under another name. |
 | Any detector never exercised? | **Two.** `ARG_CONSTRAINT_VIOLATED` and `TIMEOUT` never fire on the frozen set. Unit-tested, but unexercised by the benchmark — which is not evidence of correctness. |
 | How broad are 13 templates, really? | The **top 3 produce 50%** of the suite, and all three are `pressure_*`. |
 | Breadth per agent | `looper` trips 6 distinct modes, `pushover` 4, `confabulator` 2, `clean` 0 — the variation worst-finding scoring deliberately discards. |

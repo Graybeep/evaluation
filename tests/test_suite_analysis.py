@@ -505,8 +505,30 @@ def test_a_partition_with_a_residue_raises_rather_than_reporting_a_flag():
         assert_partition_complete(60, {"a": 2, "b": 1}, [])
 
 
-def test_real_discrimination_output_passes_the_enforcement():
-    rows = [R("a", "s1", outcome="PASS"), R("b", "s1", outcome="FAIL")]
-    out = discrimination(rows)
-    assert out["partition_sums"] is True
-    assert out["residue"] == []
+def test_discrimination_actually_routes_through_the_enforcement(monkeypatch):
+    """The first version of this test asserted only `partition_sums is True` and
+    `residue == []` — both of which the current code makes true unconditionally.
+    It was a TAUTOLOGY TEST WRITTEN TO REPLACE A TAUTOLOGY, and the C1 coverage
+    sweep found that no mutation could kill it.
+
+    What is worth asserting is that `discrimination()` routes through the
+    enforcement point rather than hardcoding the flag, so a future edit that
+    quietly stops calling it fails here."""
+    import are.score.suite as S
+
+    called = {}
+    real = S.assert_partition_complete
+
+    def spy(total, buckets, residue):
+        called.update(total=total, buckets=dict(buckets), residue=list(residue))
+        return real(total, buckets, residue)
+
+    monkeypatch.setattr(S, "assert_partition_complete", spy)
+    rows = [R("a", "s1", outcome="PASS"), R("b", "s1", outcome="FAIL"),
+            R("a", "s2", outcome="PASS"), R("b", "s2", outcome="PASS")]
+    out = S.discrimination(rows)
+
+    assert called, "discrimination() no longer calls the enforcement point"
+    assert called["total"] == 2
+    assert sum(called["buckets"].values()) == 2
+    assert out["partition_sums"] is True and out["residue"] == []
