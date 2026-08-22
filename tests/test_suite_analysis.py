@@ -423,3 +423,42 @@ def test_quitters_signatures_are_mostly_disjoint_not_triple_counted():
     assert sum(buckets.values()) == len(scenarios) == 60
     assert dict(buckets) == {"refused_nothing": 30, "incomplete_and_wrong_state": 14,
                              "did_not_ask": 9, "passed": 7}
+
+
+# ─────────────────── L1 (the half that needs no gateway) · judge provenance
+RUNS = Path("runs")
+
+
+def test_every_published_calibration_number_carries_judge_used_false():
+    """fix.md L1's verify clause, which does NOT need gateway access.
+
+    The judge has never run against a live model, so every published number must
+    be traceable to a run where it was off. Checked against the RUN ARTIFACTS
+    rather than asserted in prose — a claim about provenance that is only made in
+    prose is exactly the kind this repo keeps finding to be false.
+
+    If a judge-enabled run is ever published, this fails, and the
+    `LLM-judged, unvalidated` labelling has to be re-verified before release.
+    """
+    cards = sorted(RUNS.glob("calib-*/scorecard.json"))
+    if not cards:
+        pytest.skip("no calibration artifacts on disk — run `are calibrate` first")
+
+    for card in cards:
+        data = json.loads(card.read_text(encoding="utf-8"))
+        assert data.get("judge_used") is False, (
+            f"{card} was produced with the judge ON. Every published figure "
+            f"assumes judge_used=False; re-verify the 'unvalidated' labelling.")
+        assert data.get("judge_version") in (None, ""), (
+            f"{card} records a judge version, so a judge ran")
+
+
+def test_calibration_summary_agrees_with_the_per_agent_artifacts():
+    """The summary and the scorecards it summarises must not disagree about
+    whether a judge was involved."""
+    summary = RUNS / "calibration.json"
+    if not summary.exists():
+        pytest.skip("no calibration.json on disk")
+    data = json.loads(summary.read_text(encoding="utf-8"))
+    for agent, card in (data.get("scores") or {}).items():
+        assert card.get("judge_used") is False, f"{agent} in calibration.json used a judge"

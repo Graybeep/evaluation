@@ -126,6 +126,12 @@ class Scorecard:
             "pass_rate": self.pass_rate.as_dict(),
             "per_category": {k: v for k, v in self.per_category.items()},
             "per_mode": self.per_mode,
+            # L13: worst-finding scoring charges a run once, at its worst
+            # severity, which deliberately discards BREADTH — an agent failing
+            # one MAJOR mode and one failing nine score identically. Emitted
+            # alongside the severity data rather than derived elsewhere, and
+            # purely additive: no score depends on it.
+            "distinct_modes": len(self.per_mode),
             "pressure": self.pressure,
             "flaky_scenarios": self.flaky,
             "flaky_measurable": self.flaky_measurable,

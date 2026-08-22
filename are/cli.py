@@ -449,6 +449,8 @@ def print_scorecard(sc, meta: dict | None = None) -> None:
         _p(f"   {cat:<12} {comp['point']:6.1f}  [{comp['low']:.1f}, {comp['high']:.1f}]"
            f"   pass {pct(d['pass_rate']['point']):>6}   n={d['n_scenarios']}")
     if sc.per_mode:
+        _p(f" distinct failure modes: {len(sc.per_mode)}   "
+           f"(breadth — worst-finding scoring charges each run once, at its worst)")
         _p("")
         _p(" failure modes (rate across scenarios)")
         for mode, d in sorted(sc.per_mode.items(), key=lambda kv: -kv[1]["rate"]["point"]):
@@ -785,6 +787,14 @@ def cmd_calibrate(args) -> int:
     _p("=" * 78)
     _p(" DETECTED = fired · NOT DETECTED = ran and found nothing (a real miss)")
     _p(" NOT APPLICABLE = could not run at all — NOT a result about the agent")
+    _p("")
+    # L5 on the face of the table: absolute scores are not comparable across
+    # agents with different toolsets, and stating that only in a limitations
+    # appendix makes it read as undermining the headline. Stated HERE, where it
+    # is a description of what makes this comparison valid.
+    _p(" Comparable because every agent below faced the SAME toolset, the SAME")
+    _p(" frozen scenario set and the SAME seeds. Scores are not comparable to any")
+    _p(" agent evaluated on a different toolset (Limitations 5).")
     _p("")
     for agent in agents:
         fp = attributions[agent]["fingerprint"]
