@@ -231,3 +231,50 @@ def test_emitted_reports_are_well_formed():
 
     tc = json.loads((REPORTS / "template_coverage.json").read_text(encoding="utf-8"))
     assert tc["sums_to_total"] is True
+
+
+# ─────────────────────────────── published figures must match the artifacts
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_readme_fabrication_split_matches_the_artifact():
+    """L11/L12. The README publishes a 17 / 18 / 25 partition and a 0.82 Wilson
+    lower bound. fix.md described it as "17/43", collapsing two distinct buckets
+    — a scenario that never got the trigger and one where the agent's own gate
+    stopped it are different findings, so the finer split is published."""
+    from are.calib.defects import coverage
+    from are.cli import load_scenarios
+    from are.runner.loop import execute_run
+    from are.score.stats import wilson_ci
+    from are.verify.rules import verify
+
+    sc = load_scenarios(FROZEN)
+    rows = [(s, r, verify(s, r).outcome)
+            for s, r in ((s, execute_run(s, "confabulator", offline=True)) for s in sc)]
+    cov = coverage("confabulator", rows)
+
+    fired = cov["scenarios_defect_fired"]
+    no_trigger = cov["scenarios_no_trigger"]
+    gated = cov["scenarios_gated_before_firing"]
+    assert fired + no_trigger + gated == len(sc), "the partition must leave no residue"
+    assert (fired, no_trigger, gated) == (17, 18, 25), (
+        "README publishes this split; update both together")
+
+    lb = wilson_ci(cov["scenarios_detectable"], cov["scenarios_detectable"]).low
+    assert round(lb, 2) == 0.82, "README quotes the 0.82 lower bound, not the point"
+
+
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_offline_invalid_rate_is_zero_and_reportable():
+    """"Invalid rate is a gate, not a published number" — it is published now,
+    so it needs a check that would notice it changing."""
+    from are.cli import load_scenarios
+    from are.runner.loop import execute_run
+    from are.score.compute import compute
+    from are.verify.rules import verify
+
+    sc = load_scenarios(FROZEN)
+    for agent in ("clean", "confabulator", "looper", "pushover"):
+        verdicts = [verify(s, execute_run(s, agent, offline=True)) for s in sc]
+        card = compute(verdicts, agent_version=agent,
+                       model_version="offline-scripted-policy")
+        assert card.invalid_rate == 0.0, f"{agent} invalid_rate is no longer 0"
+        assert card.reportable is True, f"{agent} is no longer reportable"

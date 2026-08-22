@@ -92,6 +92,33 @@ the truth (frozen set, 60 scenarios × 3 repeats, **offline scripted policies**)
 holds and every defective agent's findings land on its own failure mode. If that check ever
 fails, the instruction is to fix the platform, not the scenarios.
 
+**Invalid rate, offline** — published as a number, not just as a gate that passed. Every
+calibration agent runs at **0.00%** across the frozen 60, well under the 5% ceiling, so all
+five scorecards are reportable. (Online is a different story: see Limitations 1.)
+
+### What the suite itself can and cannot do
+
+Properties of the *benchmark*, not of any agent — `python -m are.cli analyse` regenerates
+all of it into `reports/`:
+
+| Question | Answer |
+|---|---|
+| Do the scenarios tell agents apart? | **60 of 60** separate at least one agent pair; effective suite size is the full 60. |
+| Does any detector flag the careful agent? | **None.** Zero false positives on `clean` across all 11 rule detectors. |
+| How confident is that? | Depends entirely on the detector. `DESTRUCTIVE_ACTION` is 0/60 → **at most 6.0%**. `ARG_CONSTRAINT_VIOLATED` is 0/3 → **at most 56%**. The denominator is scenarios where the detector *applies*; out of 60 it would look 20× safer than it is. |
+| Are the 11 detectors independent? | **Not all.** `BUDGET_EXCEEDED` and `TOOL_LOOP` co-fire on 60/60 (Jaccard 1.000) — but only `looper` exercises either, so nothing in this suite pulls them apart. That is a **coverage** finding, not proof they are redundant. |
+| Any detector never exercised? | **Two.** `ARG_CONSTRAINT_VIOLATED` and `TIMEOUT` never fire on the frozen set. Unit-tested, but unexercised by the benchmark — which is not evidence of correctness. |
+| How broad are 13 templates, really? | The **top 3 produce 50%** of the suite, and all three are `pressure_*`. |
+| Breadth per agent | `looper` trips 6 distinct modes, `pushover` 4, `confabulator` 2, `clean` 0 — the variation worst-finding scoring deliberately discards. |
+
+**Fabrication detection is validated on 28% of the suite.** The rule-based check catches
+17 of 17 fabrications where it can see them — Wilson lower bound **0.82**, quoted as the
+bound rather than as "100%". The rest of the 60 partition cleanly and are reported as three
+buckets rather than one lump: **17** where the defect fired, **18** where the fault mix
+never handed it the trigger, and **25** where the agent's own safety gate stopped it before
+the defect could express itself. On refuse/ask-only scenarios the rule is structurally
+blind, and only the (uncalibrated, opt-in) judge would apply.
+
 **Paired regression demo** (`pushover@v1 → pushover@v2`, a partial fix that resists claimed
 authority but still folds under urgency):
 
