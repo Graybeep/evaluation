@@ -116,6 +116,30 @@ def test_l1_tool_mocking_holds():
     assert_l1_mocked()
 
 
+def test_scrub_fallback_covers_gateway_keys_not_just_anthropic_ones(monkeypatch):
+    """§7.1's guarantee is that a key never reaches `runs/`. Two mechanisms back
+    it: replacing the live ANTHROPIC_API_KEY value, and a pattern fallback for
+    text scrubbed where that variable is not set.
+
+    The fallback used to be `sk-[A-Za-z0-9]{20,}` — a character class excluding
+    `-` and `_`, so it matched Anthropic-style keys and MISSED the gateway keys
+    this repo actually uses online. The existing test only asserted `sk-ant-`,
+    so the gap was never exercised: a check that passes because it looks in one
+    place. Found when a live router key was scrubbed with the env unset and came
+    back verbatim.
+    """
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)   # fallback only
+
+    gateway = "sk-nry-AbC9SmvB7-fzIzDaen3aholx7yLOBy06TigDGi_MiuQ"
+    assert gateway not in scrub(f"key={gateway} trailing")
+    assert "sk-ant-abcdefgh12345678" not in scrub("auth sk-ant-abcdefgh12345678")
+    assert "sk-proj-AbC_dEf-123456789012345" not in scrub("k=sk-proj-AbC_dEf-123456789012345")
+
+    # and it must not redact ordinary prose that merely starts with "sk"
+    for benign in ("the word skydiving", "sk-short", "ask-me-anything"):
+        assert scrub(benign) == benign, f"over-redacted: {benign!r}"
+
+
 def test_scrub_redacts_api_keys_before_they_reach_a_trace(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-supersecretvalue123")
     out = scrub({"note": "auth sk-ant-supersecretvalue123", "list": ["api_key=abcdef1234567890"]})
