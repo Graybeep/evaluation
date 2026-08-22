@@ -38,11 +38,14 @@ A short demo is won on narrative and three numbers, not on item count. These thr
 
 | number | what it settles |
 |---|---|
-| **60 of 60** scenarios separate at least one agent pair, and **zero** false positives on the control | the suite can actually tell agents apart, and does not cry wolf on a good one |
+| **6 of 13** instances of our worst bug were inside the guard against it — and **10 of 10** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
 | **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
 | **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
-The third is the one that buys credibility for the first two.
+(`60 of 60` scenarios discriminate with zero false positives on the control is the fourth,
+if you have room — but three is the budget.)
+
+The first is the one that buys credibility for the other two.
 
 ---
 
@@ -74,70 +77,40 @@ It is just not a claim about models, and the slide must not imply that it is.
 
 ---
 
-## Slide 2 — "Eleven times this harness measured the wrong thing"
+## Slide 2 — "Six of thirteen were in the guard itself"
 
-Right after the fingerprint table. This is the strongest material in the deck, and it is
-strongest told as a pattern rather than as eleven anecdotes.
+Right after the fingerprint table. This is the strongest material in the deck, and the
+**ratio is the finding** — the count is supporting detail. Lead with this sentence:
 
-The one-line version: **attribution, green tests, and tight confidence intervals each failed
-to catch at least one of these.** What caught them was changing the denominator or the unit,
-not looking harder at the same number.
+> **Six of the thirteen times this harness measured the wrong thing were in code written
+> to prevent exactly that.**
 
-**The line that lands hardest, and it is new:** *four of the eleven are in tests written to
-prevent exactly this bug.* Two tests re-implemented the thing they were meant to guard, so
-reverting the fix left the suite green. One regenerated the files it was checking and then
-compared them to themselves. One counted receipts without checking any of them said
-anything. The reflex to check a negative survives even while you are writing the guard
-against it — which is why the standing rule here is now **mutation**: revert the fix, watch
-the suite go red, or the test is not evidence.
+Because that says something a list of thirteen anecdotes does not: **the bug class is
+self-camouflaging.** A guard against *measuring the wrong thing* fails by measuring the
+wrong thing —
 
-The full table is CLAUDE.md §7.10, numbered 1–11. Ids 1–4 predate the log kept in this repo
-and are marked NOT RECOVERABLE rather than back-filled — if someone asks, that is the
-answer, and inventing them would be its own instance.
+* two tests **re-implemented their subject**, so reverting the fix changed nothing;
+* one **regenerated the files it was checking**, then compared them to themselves;
+* one **counted receipts** without checking any of them said anything;
+* one asserted a **tautology** — a partition that could never fail to sum;
+* one tested the **helper** while the artifact everyone reads went unchecked.
 
-| # | The number said | The truth | Caught by |
-|---|---|---|---|
-| 1 | confabulator 95.3 [91.8, 98.2], attribution 100% | defect fired on the wrong trigger (`total_cents` in any response) | denominator split: only 5/60 scenarios could exercise it |
-| 2 | attribution 100%, tests green | fabricated on clean read-only scenarios | declared-trigger assertion |
-| 3 | attribution 100%, tests green | marked the agent's one *correct* behaviour as its defect | declared-trigger assertion |
-| 4 | "4 paraphrase-sensitive groups" | siblings differ in world state, seed, faults, assertions, payload id | field-by-field sibling audit |
-| 5 | every safety number | tier system failed OPEN — `IRREVERSABLE` typo left `is_irreversible()` False, downgrading CRITICAL to MAJOR | testing a day-one invariant that had never been run |
-| 6 | "bit-identical replay" | a replay miss fell through to a **live API call**, blending recorded and fresh responses | testing the replay guarantee, also never run |
-| 7 | "ACCEPTANCE: FAIL — fix the platform" | rendered twice from runs its own scorecards had marked `reportable=False` (12.5–28% invalid) | reading the scorecards the gate had just written |
-| 8 | "feasibility discard rate 0.0%" | 0.0 returned when **nothing was evaluated** — 25/25 provider faults printed as a clean rate | running `--solver llm` for real |
-| 9 | "JUDGE-ATK-01 PASS" | the injection test was **structurally incapable of failing** — its flip criterion needed a control finding it never had | running the judge-attack corpus for the first time |
+The guard adopts the failure mode of the thing it guards. So vigilance is not a strategy,
+and "we were careful" is not evidence. The only rule that survives is **revert-checking**:
+revert the fix, confirm the suite goes red, restore.
 
-Then the payoff, which is the reason to show this at all:
+**And that is now an empirical result, not a preference.** `scripts/revert_check.py` does
+it mechanically. On its first run it caught two of the six above — in fixes that had
+already shipped green.
 
-> A fifth defect was chosen **after** the taxonomy was frozen — an agent that announces
-> completion and never performs the change — with **no detector added for it**. It
-> partitions the frozen set cleanly, all 60 scenarios, no residue: 14 requiring a mutation
-> caught on `TASK_INCOMPLETE` + `WRONG_FINAL_STATE`, 30 requiring a refusal on
-> `REFUSAL_EXPECTED`, 9 requiring a question on `MISSING_CLARIFICATION`, and 7 read-only
-> scenarios that correctly pass. No coincidental passes, no partial detections. That is the
-> evidence the taxonomy generalises past what it was authored against.
+> **The number to say out loud: 10 of 10 revert-verified.** Not "250 tests pass". 250
+> passing tests is a *reading*; a revert-checked subset is *evidence*. If someone asks why
+> you are quoting the smaller number, that is the answer, and it is the best thing in the
+> deck.
 
-And the shape of that partition is a second finding: **one defect, three signatures** —
-the classifier labels by the requirement violated, not by root cause. That is the same
-lossiness as `looper`'s nine mode signatures collapsing to one composite value, reached from
-the opposite direction. Both the scoring and the classifier trade *why* for *whether*. If
-you have one spare sentence on this slide, it is this one — two independent validity checks
-converging on the same structural property is worth more than either alone.
-
-**The line to lead with on this slide:** #5, #6, #7, #8 and #9 are the same bug five times —
-a guard returning a confident value instead of refusing to answer. Malformed tier → "not
-irreversible". Replay miss → live API call. Unreportable data → PASS/FAIL. Nothing
-evaluated → 0%. Undiscriminating test → PASS. For an evaluation harness the dangerous
-default is not a crash, it is a plausible number. Every one of these looked like health.
-
-#5 and #6 are the cheap ones, and the line to say out loud: a sweep of every
-stated-but-untested invariant found **five claims, two of them false**. The three that held
-are now tested rather than asserted. 40% is the base rate to assume for any untested claim
-in a design doc — including the remaining ones on this slide.
-
-If asked "why are you showing me your bugs": because a harness that has never caught itself
-being wrong has not been tested, it has been run. The four above are the reason to believe
-the fifth result.
+If asked what the gaps in the old numbering were: the table is now sequential 1–13, and
+ids 1–4 predate the build log kept in this repo. They are marked **not recoverable** rather
+than back-filled, because inventing them would be its own instance.
 
 ---
 
@@ -151,7 +124,7 @@ the fifth result.
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
 | 4 | Regression **and** null | `are compare runs/p3-v2 runs/p3-v1 --ci` then `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible |
 | 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; two detectors that never fire; top-3 templates are 50% of the suite |
-| 6 | Eleven times we measured the wrong thing | `CLAUDE.md` §7.10 | Four of the eleven are in tests written to prevent it |
+| 6 | **Six of thirteen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 10 of 10 revert-verified — quote that, not 250 |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 
 Steps 6 and 7 are the ones people remember. Step 0 decides whether they believe 2–5 at all.

@@ -533,10 +533,33 @@ Say this explicitly in the README — it's a maturity signal.
 ### 7.10 Assert the positive condition — absence of a failure signal is not success
 
 **A validation check must assert the specific condition that constitutes success. Never
-infer success from the absence of a failure signal.** This single mistake has produced
-**eleven** separate defects in this build, across the simulator, the runner, the gates, the
-oracle, the report, the landing site — and, four times, in the *tests written to prevent
-it*.
+infer success from the absence of a failure signal.**
+
+### The finding is the ratio, not the count
+
+**Six of the thirteen instances below are in code written to prevent this exact bug.**
+That is the result worth stating; "thirteen instances" is only the supporting detail.
+
+It means the bug class is **self-camouflaging**. A guard against *measuring the wrong
+thing* fails by measuring the wrong thing:
+
+* two tests **re-implemented their subject**, so reverting the fix changed nothing;
+* one **regenerated the files it was checking** and then compared them to themselves;
+* one **counted receipts** without checking that any of them said anything;
+* one asserted a **tautology** — a partition that could never fail to sum, so a hardcoded
+  `True` was indistinguishable from the computation;
+* one tested a **helper** while the artifact everyone reads went unchecked.
+
+The guard adopts the failure mode of the thing it guards. That is *why* revert-checking is
+the only rule that survives contact with this codebase — and it is now an **empirical
+result**, not a methodological preference. `scripts/revert_check.py` runs it: revert each
+shipped fix, confirm the suite goes red, restore. On its first run it caught two of the six
+above, in fixes that had shipped green.
+
+**Report the revert-verified count, not the test total.** 250 passing tests is a reading;
+10-of-10 revert-verified is evidence.
+
+### The table
 
 Numbered sequentially. The `bug#` column is the original id from the build log where one
 exists; ids 1–4 predate the log kept in this repo and are **not recoverable** — said
@@ -556,6 +579,17 @@ mistake.
 | 9 | — | defect fingerprint (G5) | mode absent from the table | `UNGROUNDED_CLAIM` was **never evaluated** — the judge is off by default — and rendered identically to "checked, found nothing" |
 | 10 | — | **test** for generated-page drift | the pages matched | it regenerated the pages first, then compared them to themselves |
 | 11 | — | `fully_instrumented` | every scenario had a receipt | `gate()` appends one per iteration regardless, so a `check()` that evaluated nothing still produced a full set |
+| 12 | — | **G4** `partition_sums` | the partition summed | every scenario fell into exactly one branch, so it could **never** be False — a hardcoded `True` was indistinguishable from the computation. Caught by the C1 revert sweep |
+| 13 | — | **L13** `distinct_modes` test | the helper returned the right number | the *artifact* was never checked; deleting the field from `Scorecard.as_dict()` left the suite green. Caught by the C1 revert sweep |
+
+**A judgement call, recorded so it is not made on stage (C3.2).** The demo running order
+pointed at `runs/calib-pushover/report.html`, which `calibrate` does not produce —
+`calibrate` writes verdicts, `report` renders them. Same signature: *assumed artifact
+presence read as success*. It is **deliberately not numbered here**, because this table is
+about the measurement harness, and admitting a docs bug would blur what the ratio above
+means. It is recorded instead as what it is — the same reasoning error in the demo script —
+and it is why every command in the running order is now dry-run before shipping. If asked,
+the answer is: same error, different artefact, kept out of the count on purpose.
 
 **Four of the eleven are in tests written to catch exactly this.** That is the most useful
 thing in the table: the reflex to check a negative survives even while writing the guard
@@ -584,10 +618,11 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** The recurring bug in this build was not any one subsystem, it
-was one reasoning error about what a passing check proves — and four of the eleven
-instances are in the tests written to prevent it, which is the strongest version of the
-point. That is a more useful finding than nine anecdotes, and it is the reason the
+**Say this in the demo.** Lead with the ratio: **six of thirteen instances are in code
+written to prevent this bug.** The recurring defect was never any one subsystem — it was
+one reasoning error about what a passing check proves, and it is self-camouflaging enough
+to survive inside its own guard. That is why the rule is revert-checking rather than
+vigilance. That is a more useful finding than nine anecdotes, and it is the reason the
 scorecard prints "not measured" where a less careful tool prints a zero.
 
 ## 8. Component 5 — Scorecard & Regression
