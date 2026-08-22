@@ -513,6 +513,27 @@ def cmd_score(args) -> int:
 
 
 # ----------------------------------------------------------------- compare
+# ------------------------------------------------------------------ CI gate
+# P1. Exit codes carry the §6.1 three-way distinction, because collapsing them
+# would reintroduce the bug §7.10 exists to prevent: a broken harness reading as
+# a bad agent. Gating is OPT-IN (`--ci`); the default stays advisory per §7.6.
+CI_OK, CI_REGRESSION, CI_UNREPORTABLE = 0, 1, 2
+
+
+def ci_exit_code(verdict: str, reportable_a: bool, reportable_b: bool) -> int:
+    """Map a comparison to an exit code.
+
+    Order matters and is the whole point: **unreportable is checked FIRST**. A
+    run over the invalid-rate ceiling cannot support a claim about the agent in
+    either direction, so it must not be able to report "regression" — that was
+    bug #7, a verdict rendered from data the platform had already rejected. It
+    must not report success either.
+    """
+    if not (reportable_a and reportable_b):
+        return CI_UNREPORTABLE
+    return CI_REGRESSION if verdict.startswith("REGRESSION") else CI_OK
+
+
 def cmd_compare(args) -> int:
     def _load(d):
         return ([Verdict(**v) for v in json.loads((Path(d) / "verdicts.json").read_text(encoding="utf-8"))],
@@ -541,6 +562,21 @@ def cmd_compare(args) -> int:
     _p(f" verdict: {cmp_.verdict}")
     for n in cmp_.notes:
         _p(f" note: {n}")
+
+    code = ci_exit_code(cmp_.verdict, bool(ma.get("reportable", True)),
+                        bool(mb.get("reportable", True)))
+    if getattr(args, "ci", False):
+        label = {CI_OK: "PASS", CI_REGRESSION: "FAIL — regression (the agent)",
+                 CI_UNREPORTABLE: "FAIL — NOT REPORTABLE (the harness, not the agent)"}[code]
+        _p("")
+        _p(f" CI GATE: {label}   (exit {code})")
+        if code == CI_UNREPORTABLE:
+            _p("   A run over the invalid-rate ceiling supports no claim about the agent,")
+            _p("   in either direction. Fix the run before reading this comparison.")
+    else:
+        _p("")
+        _p(f" advisory only — exits 0 (§7.6). Pass --ci to gate a build on it "
+           f"(would exit {code}).")
     _p("=" * 78)
 
     out = Path(args.candidate) / "comparison.json"
@@ -550,7 +586,7 @@ def cmd_compare(args) -> int:
                     "p": cmp_.overall_p, "verdict": cmp_.verdict,
                     "at": time.strftime("%Y-%m-%dT%H:%M:%S")})
     _p(f"wrote {out}")
-    return 0
+    return code if getattr(args, "ci", False) else 0
 
 
 # ------------------------------------------------------- offline vs online
@@ -1192,6 +1228,10 @@ def build_parser() -> argparse.ArgumentParser:
     c = sub.add_parser("compare", help="paired A/B regression (McNemar + BH)")
     c.add_argument("baseline")
     c.add_argument("candidate")
+    c.add_argument("--ci", action="store_true",
+                   help="exit nonzero on a regression (1) or on an unreportable run (2). "
+                        "OFF by default: the scorecard advises, a human decides to gate "
+                        "a build on it (§7.6)")
     c.set_defaults(func=cmd_compare)
 
     rep = sub.add_parser("report", help="render the HTML report")

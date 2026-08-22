@@ -54,6 +54,47 @@ the CLI about a verdict.
 python landing/build.py && python -m http.server 8080 --directory landing
 ```
 
+### Wiring it into CI
+
+The framing is *continuous integration for autonomous agents*, so the exit code is real —
+but **opt-in**. By default `compare` exits 0 whatever it finds: the scorecard advises, and
+a human decides that it may block a build (§7.6). `--ci` turns it into a gate.
+
+The codes keep the three-way distinction rather than collapsing to pass/fail:
+
+| exit | meaning | whose problem |
+|---|---|---|
+| `0` | no meaningful regression | — |
+| `1` | regression detected | the **agent** |
+| `2` | not reportable — invalid rate over the 5% ceiling | the **harness**, never an agent finding |
+
+**A job that treats 1 and 2 alike is misconfigured.** Exit 2 means the run failed for our
+reasons — provider faults, harness errors — so it supports no claim about the agent in
+either direction. Blaming a developer's agent for our outage is the failure this whole
+project keeps finding; the codes exist so CI cannot do it by accident.
+
+```yaml
+# .github/workflows/agent-reliability.yml
+name: agent reliability
+on: [pull_request]
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - name: Score the candidate against the frozen set
+        run: |
+          python -m are.cli run --agent clean --scenarios frozen/frozen_scenarios.json                  --offline --out runs/candidate
+      - name: Fail the build on a regression, but not on our own bad data
+        run: python -m are.cli compare runs/baseline runs/candidate --ci
+        # exit 1 -> the agent regressed, block the PR
+        # exit 2 -> the evaluation itself is unreportable, fix the harness first
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: comparison, path: runs/candidate/comparison.json }
+```
+
 Containers (sandbox L3):
 
 ```bash

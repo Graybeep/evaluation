@@ -491,6 +491,27 @@ Never wire this to auto-merge or auto-block. A hard automated gate on an LLM-der
 invites optimizing the eval instead of the agent. The report recommends; a human decides.
 Say this explicitly in the README — it's a maturity signal.
 
+> **Refined 2026-08-22 (P1).** The brief's framing is "continuous integration for
+> autonomous agents", which needs an exit code to be instantiable at all. That collides
+> with the paragraph above, so the rule is narrowed rather than dropped, and the narrowing
+> is written here *before* the code, per the header of this file.
+>
+> **The default is unchanged and stays advisory: every command exits 0 on a regression.**
+> Gating is **opt-in** — `compare --ci` — so a human still decides that this score may
+> block their build. What §7.6 forbids is the tool arriving pre-wired to block; what it
+> does not forbid is letting someone wire it deliberately.
+>
+> Exit codes carry the three-way distinction (§6.1), because collapsing them would
+> reintroduce the exact bug §7.10 is about — a broken harness reading as a bad agent:
+>
+> | code | meaning | whose problem |
+> |---|---|---|
+> | 0 | no meaningful regression | — |
+> | 1 | regression detected | the **agent** |
+> | 2 | not reportable (invalid rate over ceiling) | the **harness** — never an agent finding |
+>
+> A CI job that treats 1 and 2 alike is misconfigured, and the README snippet says so.
+
 ### 7.7 Reporting honesty
 - Always show `n`, `invalid_rate`, model version, judge version, and CI width.
 - Never report a point estimate without an interval.
