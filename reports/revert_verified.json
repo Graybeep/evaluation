@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-22T23:15:00",
+  "generated_at": "2026-08-22T23:41:39",
   "method": "Each shipped fix was reverted, the full suite was run, and the result recorded. A test that stays green with its subject reverted is not evidence.",
-  "n_mutations": 10,
-  "n_revert_verified": 10,
+  "n_mutations": 12,
+  "n_revert_verified": 12,
   "n_stayed_green": 0,
   "n_pattern_not_found": 0,
   "tree_restored_and_green": true,
-  "suite_after_restore": "252 passed in 19.16s",
+  "suite_after_restore": "253 passed in 20.19s",
   "results": [
     {
       "id": "G3-null-cell",
@@ -15,7 +15,7 @@
       "why_red": "a null cell must not read as 'uncorrelated'",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 251 passed in 19.39s",
+      "suite": "1 failed, 252 passed in 20.16s",
       "restored": true
     },
     {
@@ -25,7 +25,7 @@
       "why_red": "a partition that leaves a residue must raise, not report a flag",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 251 passed in 19.74s",
+      "suite": "1 failed, 252 passed in 19.85s",
       "restored": true
     },
     {
@@ -35,7 +35,7 @@
       "why_red": "denominator 60-by-default must fail",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 250 passed in 19.69s",
+      "suite": "2 failed, 251 passed in 20.28s",
       "restored": true
     },
     {
@@ -45,7 +45,7 @@
       "why_red": "absence of the field must fail; composites must stay byte-identical",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 251 passed in 19.72s",
+      "suite": "1 failed, 252 passed in 20.36s",
       "restored": true
     },
     {
@@ -55,7 +55,7 @@
       "why_red": "a regression alone must fail the build",
       "reverted": true,
       "went_red": true,
-      "suite": "3 failed, 249 passed in 19.69s",
+      "suite": "3 failed, 250 passed in 19.89s",
       "restored": true
     },
     {
@@ -65,7 +65,7 @@
       "why_red": "reportable=False must fail the build on its own",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 250 passed in 19.67s",
+      "suite": "2 failed, 251 passed in 19.90s",
       "restored": true
     },
     {
@@ -75,7 +75,7 @@
       "why_red": "mutations_subset_of must fire, and fire FOR the drift",
       "reverted": true,
       "went_red": true,
-      "suite": "3 failed, 249 passed in 19.34s",
+      "suite": "3 failed, 250 passed in 20.38s",
       "restored": true
     },
     {
@@ -85,7 +85,7 @@
       "why_red": "A/A must produce zero flagged regressions",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 250 passed in 19.32s",
+      "suite": "2 failed, 251 passed in 19.91s",
       "restored": true
     },
     {
@@ -95,7 +95,27 @@
       "why_red": "any scenario accepted without an explicit evaluation record must fail",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 242 passed, 9 errors in 20.12s",
+      "suite": "1 failed, 243 passed, 9 errors in 19.96s",
+      "restored": true
+    },
+    {
+      "id": "G4-enforcement-call",
+      "spec_item": "G4 discrimination (routes through enforcement)",
+      "file": "are/score/suite.py",
+      "why_red": "discrimination() must call the enforcement point, not hardcode the flag",
+      "reverted": true,
+      "went_red": true,
+      "suite": "1 failed, 252 passed in 20.29s",
+      "restored": true
+    },
+    {
+      "id": "P2-analyse-agents",
+      "spec_item": "P2 drifter (co-fire matrix coverage)",
+      "file": "are/cli.py",
+      "why_red": "the co-fire matrix must cover the agents the C1/P2 cross-check needs",
+      "reverted": true,
+      "went_red": true,
+      "suite": "1 failed, 252 passed in 19.82s",
       "restored": true
     },
     {
@@ -105,7 +125,7 @@
       "why_red": "a zero-applicability category must not render PASS",
       "reverted": true,
       "went_red": true,
-      "suite": "5 failed, 247 passed in 19.52s",
+      "suite": "5 failed, 248 passed in 20.04s",
       "restored": true
     }
   ],

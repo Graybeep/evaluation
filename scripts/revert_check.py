@@ -69,6 +69,20 @@ MUTATIONS = [
      '    reason = static_check(s)' + LF,
      "any scenario accepted without an explicit evaluation record must fail"),
 
+    # Added after the first C1 sweep. A coverage check over the tests written
+    # DURING C1 found two that no mutation could kill — including one that was
+    # itself a tautology, written to replace a tautology. Both now have a driver.
+    ("G4-enforcement-call", "G4 discrimination (routes through enforcement)",
+     "are/score/suite.py",
+     '        "partition_sums": assert_partition_complete(',
+     '        "partition_sums": True or assert_partition_complete(',
+     "discrimination() must call the enforcement point, not hardcode the flag"),
+
+    ("P2-analyse-agents", "P2 drifter (co-fire matrix coverage)", "are/cli.py",
+     '"drifter", "quitter"]',
+     ']',
+     "the co-fire matrix must cover the agents the C1/P2 cross-check needs"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {

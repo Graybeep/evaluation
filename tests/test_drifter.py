@@ -215,7 +215,15 @@ def test_drifter_measurably_decouples_the_detector_in_the_cofire_matrix():
 
 def test_the_published_matrix_actually_includes_drifter():
     """The cross-check is worthless if the shipped artifact excludes the agent
-    it depends on. `analyse` defaulted to the original four."""
+    it depends on. `analyse` defaulted to the original four.
+
+    NOTE ON ITS OWN COVERAGE: this test reads a committed JSON artifact, so no
+    *code* revert can make it fail — the C1 coverage sweep confirms it is
+    unkillable by mutation. That is inherent to an artifact-freshness check, not
+    a defect, but it means this test alone is not evidence. It is deliberately
+    paired with `test_analyse_defaults_to_the_agents_the_cross_check_needs`,
+    which asserts the CODE and *is* mutation-killable. One guards a stale
+    artifact, the other guards the generator; neither is sufficient alone."""
     import json
     from pathlib import Path
 
@@ -226,3 +234,21 @@ def test_the_published_matrix_actually_includes_drifter():
     assert d["n_observations"] >= 5 * 60, (
         f"the matrix covers only {d['n_observations'] // 60} agents — drifter "
         f"and quitter must be in it for the C1/P2 cross-check to mean anything")
+
+
+def test_analyse_defaults_to_the_agents_the_cross_check_needs():
+    """Checking only the committed artifact is artifact-staleness — reverting
+    the `analyse` default would not fail until someone re-ran it, which is the
+    `report.html` bug one level up. So the CODE that produces the matrix is
+    asserted too, and that fails immediately."""
+    import inspect
+
+    from are.cli import cmd_analyse
+
+    src = inspect.getsource(cmd_analyse)
+    defaults = src[src.index("agents = args.agents or ["):]
+    defaults = defaults[:defaults.index("]")]
+    for agent in ("clean", "pushover", "drifter"):
+        assert f'"{agent}"' in defaults, (
+            f"`analyse` no longer includes {agent!r} by default; the co-fire "
+            f"matrix would stop supporting the C1/P2 cross-check")

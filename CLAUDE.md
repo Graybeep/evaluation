@@ -537,8 +537,23 @@ infer success from the absence of a failure signal.**
 
 ### The finding is the ratio, not the count
 
-**Six of the thirteen instances below are in code written to prevent this exact bug.**
-That is the result worth stating; "thirteen instances" is only the supporting detail.
+**Seven of the fourteen instances below are in code written to prevent this exact bug**,
+and **three of those seven were found by the revert-check itself** — the mechanism caught
+instances the human reading never did. That is the result worth stating; "fourteen
+instances" is only the supporting detail.
+
+It also does not stop at the harness. The same mechanism has now been observed at **three
+layers**:
+
+| layer | instances | example |
+|---|---|---|
+| the harness | 11 | `is_irreversible` fail-open; `discard_rate` 0% for "nothing evaluated" |
+| its own guards | 3 (rows 12–14) | a partition flag that could never be False; a test that replaced a tautology **with another tautology** |
+| the session doing the work | 3 | "is it really done?" found real gaps three times — each time because verification checked *what had been built* rather than *what the spec asked for* |
+
+One mechanism, three layers: **verification drifts toward the implementation and away from
+the requirement.** Cross-layer evidence is much harder to dismiss than a within-harness
+count, and it is the actual thesis of this project — not an anecdote about one codebase.
 
 It means the bug class is **self-camouflaging**. A guard against *measuring the wrong
 thing* fails by measuring the wrong thing:
@@ -581,6 +596,12 @@ mistake.
 | 11 | — | `fully_instrumented` | every scenario had a receipt | `gate()` appends one per iteration regardless, so a `check()` that evaluated nothing still produced a full set |
 | 12 | — | **G4** `partition_sums` | the partition summed | every scenario fell into exactly one branch, so it could **never** be False — a hardcoded `True` was indistinguishable from the computation. Caught by the C1 revert sweep |
 | 13 | — | **L13** `distinct_modes` test | the helper returned the right number | the *artifact* was never checked; deleting the field from `Scorecard.as_dict()` left the suite green. Caught by the C1 revert sweep |
+| 14 | — | the test written to replace row 12 | `partition_sums is True`, `residue == []` | **a tautology test written to replace a tautology.** Both assertions are unconditionally true under the current code, so no mutation could kill it. Caught by running a coverage sweep over the tests C1 itself had just added |
+
+**Rows 12–14 exist because of the mechanism, not despite it.** All three were found by
+`scripts/revert_check.py` and the coverage sweep that followed it — none by re-reading the
+code. That is the argument for mechanising the rule rather than recommending it: *the
+revert-check found instances of the bug inside the fixes for the bug.*
 
 **A judgement call, recorded so it is not made on stage (C3.2).** The demo running order
 pointed at `runs/calib-pushover/report.html`, which `calibrate` does not produce —
@@ -591,11 +612,15 @@ means. It is recorded instead as what it is — the same reasoning error in the 
 and it is why every command in the running order is now dry-run before shipping. If asked,
 the answer is: same error, different artefact, kept out of the count on purpose.
 
-**Four of the eleven are in tests written to catch exactly this.** That is the most useful
-thing in the table: the reflex to check a negative survives even while writing the guard
-against it. Instances 7, 8, 10 and 11 were each caught by mutation — reverting the fix and
-confirming the suite goes red — which is now the standing rule for any fix in this repo. A
-test that passes with its subject reverted is not evidence.
+**Seven of the fourteen are in code written to catch exactly this** — instances 7, 8, 10,
+11, 12, 13 and 14. That is the most useful thing in the table: the reflex to check a
+negative survives even while writing the guard against it.
+
+Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
+confirm the suite goes red, restore. `scripts/revert_check.py` runs it over 12 shipped
+fixes and writes `reports/revert_verified.json`. **A test that passes with its subject
+reverted is not evidence** — and rows 12–14 are what that rule bought, since all three were
+found inside fixes for earlier rows.
 
 The tell is a check written in the negative — `not x.startswith("FAIL")`, `!= "FAIL"`,
 `if not violations`, a bare `except` — over a domain with **more than two states**. Every
@@ -618,8 +643,8 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** Lead with the ratio: **six of thirteen instances are in code
-written to prevent this bug.** The recurring defect was never any one subsystem — it was
+**Say this in the demo.** Lead with the ratio: **seven of fourteen instances are in code
+written to prevent this bug, and the revert-check found three of them.** The recurring defect was never any one subsystem — it was
 one reasoning error about what a passing check proves, and it is self-camouflaging enough
 to survive inside its own guard. That is why the rule is revert-checking rather than
 vigilance. That is a more useful finding than nine anecdotes, and it is the reason the

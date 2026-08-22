@@ -190,6 +190,25 @@ Two things this surfaced, both previously hidden behind an attribution rate of 1
 calibration agent runs at **0.00%** across the frozen 60, well under the 5% ceiling, so all
 five scorecards are reportable. (Online is a different story: see Limitations 1.)
 
+### How the tests here are validated
+
+**12 of 12 shipped fixes are revert-verified.** That is the number to read, not the test
+total: a passing suite is a *reading*, a revert-checked fix is *evidence*.
+
+```bash
+python scripts/revert_check.py   # reverts each fix, confirms the suite goes red, restores
+```
+
+It writes `reports/revert_verified.json`. On its first run it found **two fixes that were
+not evidence at all** — a partition flag that could never be False, and a field tested on
+its helper while the artifact everyone reads went unchecked. A follow-up sweep over the
+tests *that run had just produced* found a third: a tautology test written to replace a
+tautology.
+
+That is why the rule is mechanised rather than recommended. Seven of the fourteen instances
+in CLAUDE.md §7.10 are in code written to prevent that exact bug, and the revert-check found
+three of them.
+
 ### Throughput, and what "at scale" means here
 
 60 scenarios reads thin against the brief's *"at scale"* — so here is the measured
