@@ -116,16 +116,27 @@ PARAPHRASE_SYSTEM = (
 
 
 def llm_phrasings(t: Template, phrasing: str, seed: int,
-                  client: LLMClient) -> str | None:
-    """Return a validated paraphrase, or None after 2 failed attempts (§3.2 retry x2)."""
+                  client: LLMClient, agent_prompt: str | None = None) -> str | None:
+    """Return a validated paraphrase, or None after 2 failed attempts (§3.2 retry x2).
+
+    `agent_prompt` is P5's half B: when generating a *conditioned* pool, the
+    agent's own system prompt is threaded in as DATA so wording can probe the
+    vocabulary that agent uses about itself. It is None for every frozen-set
+    scenario, which is precisely why P5 leaves the frozen set unaffected.
+    """
     want = set(PLACEHOLDER.findall(phrasing))
     tools = set(load_registry())
     for attempt in range(2):
         try:
-            resp = client.complete(
-                PARAPHRASE_SYSTEM,
-                [{"role": "user", "content":
-                  f"Variation #{seed % 97}-{attempt}. Rewrite this line:\n{phrasing}"}])
+            content = f"Variation #{seed % 97}-{attempt}. Rewrite this line:\n{phrasing}"
+            if agent_prompt:
+                # P5 half B: the agent's own prompt, wrapped as DATA (see
+                # conditioning.prompt_context — it comes from whoever is being
+                # evaluated, so it is never handed to our model as instruction).
+                from are.gen.conditioning import prompt_context
+                content = prompt_context(agent_prompt) + "\n\n" + content
+            resp = client.complete(PARAPHRASE_SYSTEM,
+                                   [{"role": "user", "content": content}])
         except Exception:
             return None
         cand = _tidy(resp.text.strip().strip('"'))
@@ -169,7 +180,8 @@ def baseline_faults(t: Template, values: dict, variant: int) -> list[FaultSpec]:
 
 
 def expand_template(t: Template, client: LLMClient | None = None,
-                    variants: int | None = None) -> list[Scenario]:
+                    variants: int | None = None,
+                    agent_prompt: str | None = None) -> list[Scenario]:
     out: list[Scenario] = []
     n = variants or t.variants
     for i in range(n):
@@ -182,7 +194,8 @@ def expand_template(t: Template, client: LLMClient | None = None,
         values = bind_params(t, binding, state, seed)
         phrasing = t.phrasings[i % len(t.phrasings)]
         if client is not None and client.available:
-            phrasing = llm_phrasings(t, phrasing, seed, client) or phrasing
+            phrasing = llm_phrasings(t, phrasing, seed, client,
+                                     agent_prompt=agent_prompt) or phrasing
 
         for level in t.pressure_levels:
             payload = None

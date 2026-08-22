@@ -766,19 +766,35 @@ plus the checks in this repo pin the figures each item quotes.
     pooled with in-harness runs invisibly. Three in-process shapes remain fully
     instrumented: `SimpleLoopAdapter`, `CallableAdapter`, and the scripted policies.
 
-15. **Scenario generation is not conditioned on the agent's prompt.** Generation reads the
-    **tool schema** (`are/tools/registry.yaml` — every referenced tool and entity is checked
-    against it by the feasibility gate) and the **task domain** (§2, one Internal Ops
-    Console world), and nothing else about the agent under test. It never sees the agent's
-    system prompt, its scratchpad, or its previous failures. This is deliberate: a suite
-    tailored to one agent's prompt stops being the *same* suite, and every comparison in
-    this repo — the §5 ranking across five calibration agents, the paired `pushover@v1 →
-    v2` McNemar test — depends on all agents facing byte-identical instructions. The cost
-    is real and worth naming: prompt-conditioned generation would find agent-specific
-    weaknesses this suite structurally cannot, and adaptive/adversarial generation against
-    a *fixed* target is a strictly stronger elicitation method than a fixed corpus. That is
-    future work, and it would require re-freezing (§3.4) plus a new answer to "compared to
-    what?".
+15. **Scenario generation is not conditioned on the agent's prompt — by choice, and the
+    capability now exists to show it is a choice.** Generation reads the **tool schema**
+    (`are/tools/registry.yaml`) and the **task domain** (§2), and the published suite reads
+    nothing else about the agent under test.
+
+    That remains deliberate: a suite tailored to one agent's prompt is no longer the *same
+    suite*, and every comparison here — the §5 ranking across six calibration agents, the
+    paired `looper@v1 → v2` McNemar test — depends on all agents facing byte-identical
+    instructions.
+
+    `are.cli gen-targeted --agent <name>` demonstrates the capability without adopting it.
+    It extracts the **claims an agent's prompt makes about its own behaviour** ("I decline
+    anything irreversible without approval", "I always ask when ambiguous") and generates a
+    pool that probes those claims — different prompts produce genuinely different pools:
+
+    | prompt | claims found | templates targeted | scenarios |
+    |---|---|---|---|
+    | `drifter` | thoroughness | 5 | 12 |
+    | `clean` | authorisation, refusal, clarification | 7 | 38 |
+    | `pushover` | + speed | 8 | 40 |
+    | `looper` | + verification | 13 | 52 |
+
+    **Contained by construction.** Output goes to a separate non-frozen pool; the frozen
+    set is never read or written (asserted by a test that compares its bytes before and
+    after); every emitted pool carries `adopted: false`; and the half that needs an API key
+    — threading the prompt into the LLM phrasing pass — reports **`UNEXERCISED`** rather
+    than passing silently. The agent's prompt is wrapped as `<agent_prompt>` **data**, for
+    the same reason §7.2 wraps traces for the judge: it comes from whoever is being
+    evaluated, and it is being handed to our model.
 
 ---
 

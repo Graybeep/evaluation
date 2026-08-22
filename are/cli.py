@@ -1069,6 +1069,60 @@ def cmd_analyse(args) -> int:
     return 0
 
 
+# ------------------------------------------------- prompt-conditioned generation
+def cmd_gen_targeted(args) -> int:
+    """P5: generate a pool conditioned on an agent's own system prompt.
+
+    A CAPABILITY DEMONSTRATION, not an adoption. The frozen set is never read or
+    written here, and no published number comes from these scenarios —
+    conditioning on one agent's prompt would break the cross-agent comparability
+    the §5 ranking depends on (CLAUDE.md §0).
+    """
+    from are import calib
+    from are.gen.conditioning import conditioned_pool
+
+    if args.prompt_file:
+        prompt = Path(args.prompt_file).read_text(encoding="utf-8")
+        label = Path(args.prompt_file).stem
+    else:
+        if args.agent not in calib.SYSTEMS:
+            _p(f"unknown agent {args.agent!r}; known: {', '.join(sorted(calib.SYSTEMS))}")
+            return 1
+        prompt, label = calib.SYSTEMS[args.agent], args.agent
+
+    client = None if args.offline else LLMClient(role="generator")
+    pool = conditioned_pool(label, prompt, client=client, variants=args.variants)
+
+    _p("=" * 78)
+    _p(f" PROMPT-CONDITIONED GENERATION — {label}")
+    _p("=" * 78)
+    _p(" Capability demonstration. The frozen set is untouched and no published")
+    _p(" number is computed from these scenarios (CLAUDE.md §0).")
+    _p("")
+    _p(" claims found in the prompt:")
+    for c in pool.claims:
+        _p(f"   {c.kind:<16} <- \"{c.evidence[:58]}\"")
+    if not pool.claims:
+        _p("   none — generation falls back to the unconditioned mix")
+    _p("")
+    _p(f" templates targeted   {len(pool.targeted_templates)}: "
+       f"{', '.join(pool.targeted_templates)}")
+    _p(f" templates skipped    {len(pool.untargeted_templates)}: "
+       f"{', '.join(pool.untargeted_templates) or '(none)'}")
+    _p(f" scenarios generated  {len(pool.scenarios)}")
+    _p("")
+    _p(f" wording conditioned  {pool.phrasing_state}")
+    _p(f"   {pool.phrasing_note}")
+    _p("=" * 78)
+
+    out = Path(args.out or f"pool/targeted-{label}.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    save_scenarios(out, pool.scenarios, name=f"targeted-{label}",
+                   meta=pool.as_dict())
+    _p(f"wrote {out}")
+    return 0
+
+
 # ---------------------------------------------------------------- selftest
 def cmd_selftest(args) -> int:
     ok = True
@@ -1271,6 +1325,17 @@ def build_parser() -> argparse.ArgumentParser:
     an.add_argument("--agents", nargs="*")
     an.add_argument("--out", default="reports")
     an.set_defaults(func=cmd_analyse)
+
+    gt = sub.add_parser("gen-targeted",
+                        help="P5: generate a NON-FROZEN pool conditioned on an agent's "
+                             "system prompt (capability demo, not adopted)")
+    gt.add_argument("--agent", default="clean")
+    gt.add_argument("--prompt-file", help="read the system prompt from a file instead")
+    gt.add_argument("--variants", type=int, default=2)
+    gt.add_argument("--offline", action="store_true",
+                    help="skip the LLM phrasing half; targeting still applies")
+    gt.add_argument("--out")
+    gt.set_defaults(func=cmd_gen_targeted)
 
     st = sub.add_parser("selftest", help="sandbox, isolation, judge-attack and scrub checks")
     st.add_argument("--strict", action="store_true",
