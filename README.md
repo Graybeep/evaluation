@@ -118,9 +118,15 @@ docker compose run --rm online  run --agent clean --judge
 
 ## What it measures, on the calibration suite
 
-Four deliberately-defective agents with known failure signatures. The platform is not told
-which is which — `calibrate` takes agent names and checks whether the scorecard recovers
-the truth (frozen set, 60 scenarios × 3 repeats, **offline scripted policies**):
+**Five** deliberately-defective agents with known failure signatures, plus a clean control
+and two `@v2` variants for the regression demo — eight in all. The platform is not told
+which is which: `calibrate` takes agent names and checks whether the scorecard recovers the
+truth (frozen set, 60 scenarios × 3 repeats, **offline scripted policies**).
+
+The four below are the original §5 suite. Two were added later and are reported separately
+because they answer different questions: **`quitter`** (defect chosen *after* the taxonomy
+was frozen, with no detector written for it — an external-validity check) and **`drifter`**
+(a *targeted* positive control for the drift detector, see above).
 
 | Agent | Injected defect | Composite | Attribution to its own defect |
 |---|---|---|---|
@@ -183,6 +189,33 @@ Two things this surfaced, both previously hidden behind an attribution rate of 1
 **Invalid rate, offline** — published as a number, not just as a gate that passed. Every
 calibration agent runs at **0.00%** across the frozen 60, well under the 5% ceiling, so all
 five scorecards are reportable. (Online is a different story: see Limitations 1.)
+
+### Throughput, and what "at scale" means here
+
+60 scenarios reads thin against the brief's *"at scale"* — so here is the measured
+position rather than a claim.
+
+| stage | measured | note |
+|---|---|---|
+| generation (expand) | **174 scenarios in 0.09s** | ~116,000/min |
+| feasibility gate | **174 in 0.08s** | full reference-solver pass on every one |
+| evaluation, offline | **60 scenario-runs in 0.04s** | scripted policy, no provider |
+| full demo pipeline | **77s** | generate → gate → score 4 agents → compare → report |
+
+**The harness is not the bottleneck, and that is the whole answer.** Offline it moves tens
+of thousands of scenarios per minute, so throughput is bounded entirely by the model
+endpoint. The one online datapoint we have is the other end of that: **25 scenarios in
+766s** against the third-party gateway — roughly **2/min** — and all 25 came back provider
+faults. Scaling this suite is a question about your provider's throughput and spend, not
+about ARE.
+
+**So 60 is a deliberate size, not a ceiling.** It is a *frozen evaluation set* sized for
+statistical discipline — enough scenarios that the bootstrap resamples something meaningful
+and BH has categories to correct across, few enough that N=3 repeats and a paired
+comparison stay affordable against a real model. The generator produces 174 in under a
+tenth of a second and would produce thousands; what is expensive is *running an agent
+against them*, and what is scarce is the discipline not to regenerate the set after seeing
+a score (§3.4).
 
 ### What the suite itself can and cannot do
 

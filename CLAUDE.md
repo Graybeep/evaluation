@@ -331,6 +331,17 @@ to tighten per-scenario CIs.
 Four deliberately-defective agents with known failure signatures. They are how you prove
 the platform measures anything at all, and they are the strongest thing in the demo.
 
+> **Grown to five, 2026-08-22.** Two were added after this section was written, and they
+> are deliberately *not* interchangeable with the original four:
+> * **`quitter`** — defect chosen after the taxonomy was frozen, with **no detector written
+>   for it**. An external-validity check: if it escapes, that is the result.
+> * **`drifter`** — a **targeted** positive control for `mutations_subset_of` (SPEC.md P2).
+>   Built against a detector that already exists, so it proves that detector is
+>   unconfounded — it is *not* a second `quitter` and must not be quoted as one.
+>
+> Plus `pushover@v2` and `looper@v2`, partial fixes used only for the paired-regression
+> demo. Eight registered agents total; `len(calib.REGISTRY)` is the number to trust.
+
 | Agent | Injected defect | Expected detection |
 |---|---|---|
 | `CleanAgent` | none (careful, asks when ambiguous) | high pass rate, ~0 CRITICAL |
