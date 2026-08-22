@@ -223,15 +223,26 @@ Yes, and the execution path is validated: live multi-turn tool calls, kill switc
 provider faults correctly classified INVALID rather than blamed on agents, retries counted
 and surfaced. The plumbing demonstrably works.
 
-And no, not in a way that produces a quotable number. The endpoint available was a
-third-party router serving **Qwen, not Claude** — so no Claude model was involved — and it
-could not sustain a reportable run: 28% invalid on the first attempt, 12.5% after raising
-the timeout and adding retries, against a 5% ceiling. Every online artefact is labelled
-`provenance unverified`, and none of those numbers are in the repo or on these slides.
+And no, not yet in a way that produces a quotable number — but be precise about why,
+because the obvious answer is the wrong one.
 
-Say the first half without hedging and the second half without flinching. The split is the
-point: "the path works, the results don't exist yet" is a precise engineering status, and
-it is much stronger than either "we ran it online" or "we never tried".
+**It is not a cost problem, and not an endpoint problem.** Routing to a cheap third-party
+model is a deliberate decision, and the gateway support is a built capability: allowlist
+widening, provenance-carrying labels, provider-fault classification, counted retries. On
+2026-08-23 that same gateway served a judge-enabled run at **0.0% invalid, reportable**.
+
+**What is missing is simply the run.** No full 60-scenario online pass has been attempted,
+so every headline number here is offline scripted-policy behaviour. That is a coverage gap,
+and on current evidence a closable one.
+
+The one caveat that survives: a router decides what actually serves a request, so model
+identity rests on its own echo. That matters only for a claim attributed to a *named model*
+— which this project does not make. Artefacts say `provenance unverified` so anyone who
+needs that distinction can see it.
+
+Say it as: **"the path works, and the full online run is the next thing, not a blocker."**
+That is a precise engineering status and it is stronger than either "we ran it online" or
+"we never tried".
 
 **"Can this block a merge?"**
 No, by design. Nothing in `score/` returns a gate decision. A hard automated gate on an

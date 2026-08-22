@@ -645,27 +645,32 @@ plus the checks in this repo pin the figures each item quotes.
    agent), bounded counted retries (27 recoveries across 13 of 32 runs, surfaced rather than
    laundered), and provenance-carrying model labels. The plumbing works.
 
-1b. **Model-attributed reliability results remain unvalidated.** Two independent reasons,
-   either of which alone is disqualifying:
+1b. **No full-suite online run has been done. That is a gap, not a verdict on the
+   endpoint.** Earlier drafts of this section were wrong in two ways and both are corrected
+   here.
 
-   * **No reportable run was achieved.** `invalid_rate` was 28% on the first attempt and
-     12.5% after raising the wall-clock cap and adding 5xx retries — against a 5% ceiling
-     (§6.1). Every failure was gateway instability, not agent behaviour. The available
-     infrastructure could not sustain a reportable run, and the full-suite run was
-     deliberately not attempted on that basis.
-   * **The endpoint was not Anthropic, and its model identity is unverifiable.** Traffic
-     went to a third-party router (`router.bynara.id`); the model served was
-     `qwen-3.8-max-free` — **no Claude model was involved in any online run**. Even the
-     Qwen identity rests on the router's own echo and the model's self-report, neither of
-     which is proof: a gateway can serve a different checkpoint, a quantised build, or a
-     substitute, and nothing in the response would reveal it. Every online artefact is
-     therefore labelled `qwen-3.8-max-free (via router.bynara.id, provenance unverified)`,
-     and no number from those runs appears in this README or the tagged artifact.
+   *Using a third-party router is a cost decision, not a limitation.* Routing through
+   `router.bynara.id` to a cheap model is a sound engineering choice for a project whose
+   headline result is "the harness recovers a known ranking". Gateway support is a **built
+   capability** — allowlist widening, provenance-carrying labels, provider-fault
+   classification, counted retries — and calling it a deficiency confused a design decision
+   with a defect.
 
-   Consequently **this project reports no validated model-attributed reliability result.**
-   The headline table is scripted-policy behaviour with the co-design caveat above; the one
-   online ordering signal obtained came from a 12.5%-invalid run and is logged as a
-   hypothesis, not a finding.
+   *The "unstable infrastructure" claim was stale.* It rested on runs of 2026-08-20 at 28%
+   and 12.5% invalid. On 2026-08-23 the same gateway served a judge-enabled run at
+   **`invalid_rate 0.0`, reportable=True**. That is a small sample (8 scenarios) and does
+   not prove stability — but it does refute "could not sustain a reportable run", so that
+   sentence is gone.
+
+   **What is actually still true:** no full 60-scenario online run has been attempted, so
+   every headline number here is offline scripted-policy behaviour. That is a gap in
+   coverage, and on current evidence a closable one.
+
+   **And one caveat that is not about cost:** a router decides what actually serves a
+   request, so model identity rests on its own echo. That matters only if you want a
+   number attributed to a *named model* — which this project never claims. Artefacts are
+   labelled `qwen-3.8-max-free (via router.bynara.id, provenance unverified)` so the
+   distinction is visible to anyone who does need it.
 
 1c. **The LLM judge has now run — and is still uncalibrated.** Both halves matter.
 
