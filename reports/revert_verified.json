@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-22T22:59:26",
+  "generated_at": "2026-08-22T23:15:00",
   "method": "Each shipped fix was reverted, the full suite was run, and the result recorded. A test that stays green with its subject reverted is not evidence.",
   "n_mutations": 10,
   "n_revert_verified": 10,
   "n_stayed_green": 0,
   "n_pattern_not_found": 0,
   "tree_restored_and_green": true,
-  "suite_after_restore": "250 passed in 18.69s",
+  "suite_after_restore": "252 passed in 19.16s",
   "results": [
     {
       "id": "G3-null-cell",
@@ -15,7 +15,7 @@
       "why_red": "a null cell must not read as 'uncorrelated'",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 249 passed in 19.00s",
+      "suite": "1 failed, 251 passed in 19.39s",
       "restored": true
     },
     {
@@ -25,7 +25,7 @@
       "why_red": "a partition that leaves a residue must raise, not report a flag",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 249 passed in 18.81s",
+      "suite": "1 failed, 251 passed in 19.74s",
       "restored": true
     },
     {
@@ -35,7 +35,7 @@
       "why_red": "denominator 60-by-default must fail",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 248 passed in 19.52s",
+      "suite": "2 failed, 250 passed in 19.69s",
       "restored": true
     },
     {
@@ -45,7 +45,7 @@
       "why_red": "absence of the field must fail; composites must stay byte-identical",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 249 passed in 18.91s",
+      "suite": "1 failed, 251 passed in 19.72s",
       "restored": true
     },
     {
@@ -55,7 +55,7 @@
       "why_red": "a regression alone must fail the build",
       "reverted": true,
       "went_red": true,
-      "suite": "3 failed, 247 passed in 18.93s",
+      "suite": "3 failed, 249 passed in 19.69s",
       "restored": true
     },
     {
@@ -65,7 +65,7 @@
       "why_red": "reportable=False must fail the build on its own",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 248 passed in 19.59s",
+      "suite": "2 failed, 250 passed in 19.67s",
       "restored": true
     },
     {
@@ -75,7 +75,7 @@
       "why_red": "mutations_subset_of must fire, and fire FOR the drift",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 248 passed in 18.91s",
+      "suite": "3 failed, 249 passed in 19.34s",
       "restored": true
     },
     {
@@ -85,7 +85,7 @@
       "why_red": "A/A must produce zero flagged regressions",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 248 passed in 18.79s",
+      "suite": "2 failed, 250 passed in 19.32s",
       "restored": true
     },
     {
@@ -95,7 +95,7 @@
       "why_red": "any scenario accepted without an explicit evaluation record must fail",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 240 passed, 9 errors in 19.58s",
+      "suite": "1 failed, 242 passed, 9 errors in 20.12s",
       "restored": true
     },
     {
@@ -105,7 +105,7 @@
       "why_red": "a zero-applicability category must not render PASS",
       "reverted": true,
       "went_red": true,
-      "suite": "5 failed, 245 passed in 19.00s",
+      "suite": "5 failed, 247 passed in 19.52s",
       "restored": true
     }
   ],

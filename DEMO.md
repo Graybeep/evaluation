@@ -34,10 +34,23 @@ measurement, and it is worth more airtime than any score on the screen.
 
 ### The three hard numbers to land
 
-A short demo is won on narrative and three numbers, not on item count. These three:
+A short demo is won on narrative and three numbers, not on item count. These three, in
+this order:
 
-| number | what it settles |
-|---|---|
+| # | number | what it settles |
+|---|---|---|
+| 1 | **6 of 13** instances of our worst bug were inside the guard against it — so **10 of 10** fixes are revert-verified | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
+| 2 | **zero** false positives on `clean` — at most **6.0%** on `DESTRUCTIVE_ACTION` (0/60), but at most **56%** on `ARG_CONSTRAINT_VIOLATED` (0/3) | the suite does not flag a good agent — *and* we report how little that proves per detector, because the denominator is applicability, not 60 |
+| 3 | **P=0.29** on our own refusal heuristic, with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
+
+**Number 2 is the one to slow down on.** "Zero false positives" is the reassuring headline;
+the honest half is the second clause. `ARG_CONSTRAINT_VIOLATED` at 0/3 is *at most 56%* —
+with three applicable scenarios you know almost nothing, and dividing by 60 instead would
+have made it look twenty times safer. That single row is the whole method in miniature.
+
+Number 1 is what buys the credibility for 2 and 3.
+
+---|---|
 | **6 of 13** instances of our worst bug were inside the guard against it — and **10 of 10** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
 | **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
 | **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
@@ -210,3 +223,45 @@ it is much stronger than either "we ran it online" or "we never tried".
 **"Can this block a merge?"**
 No, by design. Nothing in `score/` returns a gate decision. A hard automated gate on an
 LLM-derived score invites optimising the eval instead of the agent.
+
+
+---
+
+## Rehearsal checklist
+
+check.md reserves the final block for this, and it is not padding: every failure in this
+project's history is something that looked fine until it was executed.
+
+**Run the deck end to end, from a clean shell, before demo day.** Not read — *run*.
+
+```bash
+git clone --branch v1.5-demo <repo> /tmp/rehearse && cd /tmp/rehearse
+pip install -r requirements.txt
+python -m pytest -q                      # expect 252 passed
+python scripts/revert_check.py           # expect 10/10 revert-verified, tree GREEN
+python -m are.cli selftest               # expect exit 0, 3 judge probes SKIPPED
+python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox
+python -m are.cli analyse                # the suite's own properties
+python -m are.cli report runs/calib-pushover
+python -m are.cli compare runs/p3-v2 runs/p3-v1 --ci    # expect exit 1
+python -m are.cli compare runs/p3-v1 runs/p3-v1b --ci   # expect exit 0
+```
+
+**Three things that will bite if you skip this:**
+
+1. **`selftest --strict` exits 1** on a keyless checkout. That is correct and documented,
+   but it looks like a failure on a projector. Use plain `selftest`, and if someone spots
+   the flag, the answer is one sentence: *an unrun security check is not a passing one.*
+2. **Step 3 needs `report` run first.** `calibrate` writes verdicts; `report` renders them.
+   This exact assumption already broke the running order once.
+3. **With a live key, `selftest` reports L3 degraded.** Also correct (§7.9) — egress deny
+   cannot be on when you need egress. Say it before anyone asks.
+
+**Time the whole thing.** The 3-minute order is a claim; make it a measurement. If you are
+over, the 60-second cut is steps 0, 2 and 4 — the question, the fingerprint, the
+regression-plus-null.
+
+**Rehearse the two questions you least want.** *"Isn't the control at 100 because you wrote
+both sides?"* and *"Your judge has never run — why should I trust the oracle?"* Both have
+honest answers already written in the §"Questions" section below. Say them out loud once;
+the answers are good, and they only sound good if they are not being improvised.
