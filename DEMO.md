@@ -254,7 +254,7 @@ been written from memory rather than measured.
 git clone --branch v1.6-demo <repo> /tmp/rehearse && cd /tmp/rehearse
 pip install -r requirements.txt
 
-python -m pytest -q            # -> 254 passed, 3 SKIPPED   <-- see note
+python -m pytest -q            # -> 255 passed, 3 SKIPPED   <-- see note
 python scripts/revert_check.py # -> 14/14 revert-verified, tree GREEN
 python -m are.cli selftest              # -> exit 0 (3 judge probes SKIPPED)
 python -m are.cli selftest --strict     # -> exit 1, BY DESIGN
@@ -270,8 +270,8 @@ bash demo.sh                            # -> exit 0 in 50s
 > **The 3 skips are real and you should know why before someone asks.** A fresh clone has
 > no run artifacts — `runs/` is gitignored — so three tests that read committed artifacts
 > skip loudly. They are *not* the CI or regression claims; those build what they need.
-> After `calibrate` + `analyse` the count is **256 passed, 1 skipped**, and after
-> `gen-targeted` it is **257 passed, 0 skipped**. All three counts were measured.
+> After `calibrate` + `analyse` the count is **257 passed, 1 skipped**, and after
+> `gen-targeted` it is **258 passed, 0 skipped**. All three counts were measured.
 >
 > An earlier version of this checklist said "expect 253 passed". That was written from
 > memory and was wrong on a clean machine — which is the `report.html` bug one level up,
