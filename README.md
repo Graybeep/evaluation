@@ -205,10 +205,11 @@ its helper while the artifact everyone reads went unchecked. A follow-up sweep o
 tests *that run had just produced* found a third: a tautology test written to replace a
 tautology.
 
-That is why the rule is mechanised rather than recommended. Nine of the seventeen instances
-in CLAUDE.md §7.10 are in code written to prevent that exact bug, and five were found by
-*running* something rather than re-reading it — including one in a rehearsal checklist
-that had never been executed, and one in the analysis of the judge run itself.
+That is why the rule is mechanised rather than recommended. Twelve of the seventeen instances
+in CLAUDE.md §7.10 did not live in the harness at all — they lived in a check written to
+prevent that exact bug. Six were found by *running* something rather than re-reading it,
+including one in a rehearsal checklist that had never been executed, and one in the
+analysis of the judge run itself.
 
 ### Throughput, and what "at scale" means here
 

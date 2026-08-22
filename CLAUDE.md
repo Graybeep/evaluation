@@ -563,57 +563,56 @@ infer success from the absence of a failure signal.**
 
 ### The finding is the ratio, not the count
 
-**Nine of the seventeen instances below are in code written to prevent this exact bug**,
-and **five of those nine were found by running something, not by re-reading** — the mechanism caught
-instances the human reading never did. That is the result worth stating; "fourteen
-instances" is only the supporting detail.
+**Twelve of the seventeen instances below did not live in the harness — they lived in a
+check written to prevent exactly this bug.** That is 71%, and it is the result worth
+stating; "seventeen instances" is only the supporting detail.
 
-It also does not stop at the harness. The same mechanism has now been observed at **three
-layers**:
+**Where the defect lived** — disjoint, and it sums, because a partition that does not is
+this table's own subject matter:
 
-| layer | instances | example |
+| layer | n | rows |
 |---|---|---|
-| the harness | 11 | `is_irreversible` fail-open; `discard_rate` 0% for "nothing evaluated" |
-| its own guards | 4 (rows 12–15) | a partition flag that could never be False; a test that replaced a tautology **with another tautology** |
-| the session doing the work | 3 |
-| **analysis of the results** | **2** (rows 16–17) | a `0` from a reader that was looking in the wrong place; a key-redaction pattern that matched no key we use | "is it really done?" found real gaps three times — each time because verification checked *what had been built* rather than *what the spec asked for* |
+| the harness's own logic | 4 | 1, 2, 9, 17 |
+| **checks and guards written against that logic** | **11** | 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14 |
+| process — the demo script and the rehearsal checklist | 1 | 15 |
+| analysis of the results | 1 | 16 |
+| **total** | **17** | |
 
-One mechanism, **four** layers, and the fourth is what generalises it past this codebase:
+So the bug class is **self-camouflaging**: a guard against *measuring the wrong thing*
+fails by measuring the wrong thing. Two re-implemented their subject, one regenerated the
+files it was checking and compared them to themselves, one counted receipts without
+checking any said anything, one asserted a tautology, one was *a tautology written to
+replace a tautology*.
 
-**A zero from an unvalidated reader is indistinguishable from a zero from a clean run.**
+**Six were found by running something, never by re-reading it** — rows 12, 13, 14, 15, 16
+and 17. That is the argument for mechanising the rule rather than recommending vigilance.
 
-That is row 16, and it happened *while analysing the judge result that proves the tool
-works* — the extractor returned `0 fabrication markers`, which reads exactly like "the
-agent never fabricated". The only thing that caught it was asking whether the zero was real
-or the reader was broken. Every earlier instance is a special case of the same sentence:
-`discard_rate` 0% for "nothing evaluated", a tier string that matched nothing, a partition
-that could never fail to sum, a key pattern that matched no key.
+### Two distinct lessons, and they are not the same lesson
 
-The prospective form of this rule is already in the codebase and is worth pointing at: the
-JUDGE-ATK probes report `control_flagged=True` precisely so a pass cannot be vacuous. Bug
-#9 taught that lesson retrospectively; the control exists because of it.
+**(a) A zero from an unvalidated reader is indistinguishable from a zero from a clean run.**
+Row 16 is the clearest form: the extractor read `traces.jsonl` expecting a `steps` array,
+got `0` markers, and `0` reads exactly like "the agent never fabricated". Rows 1, 4, 12 and
+17 are all special cases of that sentence. The prospective form is already in the code —
+JUDGE-ATK reports `control_flagged=True` precisely so a pass cannot be vacuous, a control
+that exists *because* bug #9 taught the lesson retrospectively.
 
-Cross-layer evidence is much harder to dismiss than a within-harness count, and it is the
-actual thesis of this project — not an anecdote about one codebase.
+**(b) A test derived from the implementer's model can only catch deviations FROM that
+model, never errors IN it.** This is row 17 and it is a different failure. The regex and
+its test shared a blind spot because *the same mental model produced both*: `sk-ant-` was
+what the author pictured a key looking like, so that is what the code matched and what the
+test asserted. Nothing was read from the wrong place — the right place was read with the
+wrong schema in mind. It is also why the guards in the table above failed: writing the test
+right after the code means writing it from the same picture.
 
-It means the bug class is **self-camouflaging**. A guard against *measuring the wrong
-thing* fails by measuring the wrong thing:
+The countermeasure differs too. For (a), validate the reader. For (b), the test has to come
+from somewhere the implementer's model did not — a real sample, an adversarial case, or
+another person.
 
-* two tests **re-implemented their subject**, so reverting the fix changed nothing;
-* one **regenerated the files it was checking** and then compared them to themselves;
-* one **counted receipts** without checking that any of them said anything;
-* one asserted a **tautology** — a partition that could never fail to sum, so a hardcoded
-  `True` was indistinguishable from the computation;
-* one tested a **helper** while the artifact everyone reads went unchecked.
-
-The guard adopts the failure mode of the thing it guards. That is *why* revert-checking is
-the only rule that survives contact with this codebase — and it is now an **empirical
-result**, not a methodological preference. `scripts/revert_check.py` runs it: revert each
-shipped fix, confirm the suite goes red, restore. On its first run it caught two of the six
-above, in fixes that had shipped green.
-
-**Report the revert-verified count, not the test total.** 250 passing tests is a reading;
-10-of-10 revert-verified is evidence.
+**Two severity notes, because subtlety and severity are not correlated here.** Row 17 is
+the only one of the seventeen whose consequence was **credential exposure** rather than a
+wrong number — and it is among the least conspicuous. And it surfaced only because
+something else was being investigated (whether the key had leaked into a commit). That is
+the fourth time looking for one thing has produced a finding about another.
 
 ### The table
 
@@ -658,8 +657,8 @@ means. It is recorded instead as what it is — the same reasoning error in the 
 and it is why every command in the running order is now dry-run before shipping. If asked,
 the answer is: same error, different artefact, kept out of the count on purpose.
 
-**Nine of the seventeen are in code written to catch exactly this** — instances 7, 8, 10,
-11, 12, 13, 14, 15 and 17. That is the most useful thing in the table: the reflex to check a
+**Twelve of the seventeen are in a check written to catch exactly this** — instances 3, 4,
+5, 6, 7, 8, 10, 11, 12, 13, 14 and 15. That is the most useful thing in the table: the reflex to check a
 negative survives even while writing the guard against it.
 
 Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
@@ -689,8 +688,8 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** Lead with the ratio: **nine of seventeen instances are in code
-written to prevent this bug, and five were found by running something rather than by
+**Say this in the demo.** Lead with the ratio: **twelve of seventeen instances lived in a check
+written to prevent this bug, and six were found by running something rather than by
 re-reading it.** The recurring defect was never any one subsystem — it was
 one reasoning error about what a passing check proves, and it is self-camouflaging enough
 to survive inside its own guard. That is why the rule is revert-checking rather than
