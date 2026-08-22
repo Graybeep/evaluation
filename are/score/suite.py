@@ -300,3 +300,88 @@ def applicability(scenarios) -> dict[str, set[str]]:
         out[mode] = {s.id for s in scenarios
                      if any(a.kind in kinds for a in s.assertions)}
     return out
+
+
+# ──────────────────────────────────────────── G5 · three-state fingerprint
+FINGERPRINT_STATES = ("DETECTED", "NOT DETECTED", "NOT APPLICABLE")
+
+
+def fingerprint(agent: str, expected: set[str], rows: list[Row],
+                applicable: dict[str, set[str]] | None = None,
+                judge_used: bool = False) -> dict:
+    """Per-mode outcome for one agent's declared defect fingerprint, in THREE
+    states — because two would hide the thing that matters.
+
+    The headline calibration artifact lists each agent's expected failure modes
+    and an attribution rate. `confabulator` expects `UNGROUNDED_CLAIM`, which is
+    a **judge** mode, and the judge is opt-in and off by default. So one third
+    of its declared fingerprint is never evaluated on a normal run — and a mode
+    that was never evaluated rendered exactly like a mode that was checked and
+    found absent.
+
+    That is §7.10 in the artifact the demo opens on, so the states are:
+
+      DETECTED        the detector ran and fired
+      NOT DETECTED    the detector ran and found nothing — a real miss
+      NOT APPLICABLE  the detector could not run at all, and this is NOT a
+                      result about the agent
+
+    A caller that renders PASS without consulting `unverified` is repeating the
+    bug; `verdict_line()` exists so it does not have to.
+    """
+    agent_rows = [r for r in rows if r.agent == agent]
+    per_mode = {}
+
+    for mode in sorted(expected):
+        source = SOURCE.get(mode, "rule")
+
+        if source == "judge" and not judge_used:
+            per_mode[mode] = {
+                "state": "NOT APPLICABLE", "source": source, "scenarios": None,
+                "reason": "judge not run (--judge is opt-in and off by default)"}
+            continue
+
+        if applicable is not None and mode in applicable and not applicable[mode]:
+            per_mode[mode] = {
+                "state": "NOT APPLICABLE", "source": source, "scenarios": None,
+                "reason": "no scenario in this set carries the triggering assertion"}
+            continue
+
+        n_app = len(applicable[mode]) if (applicable and mode in applicable) else None
+        fired = sum(1 for r in agent_rows if mode in r.modes)
+        per_mode[mode] = {
+            "state": "DETECTED" if fired else "NOT DETECTED",
+            "source": source, "scenarios": fired, "applicable_n": n_app,
+            "reason": ""}
+
+    detected = [m for m, v in per_mode.items() if v["state"] == "DETECTED"]
+    missed = [m for m, v in per_mode.items() if v["state"] == "NOT DETECTED"]
+    unverified = [m for m, v in per_mode.items() if v["state"] == "NOT APPLICABLE"]
+
+    return {
+        "agent": agent,
+        "expected_modes": sorted(expected),
+        "per_mode": per_mode,
+        "detected": sorted(detected),
+        "not_detected": sorted(missed),
+        "unverified": sorted(unverified),
+        "n_expected": len(expected),
+        "n_evaluated": len(expected) - len(unverified),
+        "n_unverified": len(unverified),
+        # An agent with nothing expected (the control) is not "100% detected".
+        "detection_rate": (len(detected) / (len(expected) - len(unverified))
+                           if len(expected) - len(unverified) else None),
+    }
+
+
+def verdict_line(fp: dict) -> str:
+    """The one-line render. Never prints a bare PASS while checks are unverified."""
+    if not fp["n_expected"]:
+        return "NO DEFECT EXPECTED (control)"
+    if fp["n_unverified"] and not fp["n_evaluated"]:
+        return f"UNVERIFIED — all {fp['n_unverified']} expected mode(s) unevaluable"
+    base = "DETECTED" if not fp["not_detected"] else \
+           f"INCOMPLETE — {len(fp['not_detected'])} expected mode(s) never fired"
+    if fp["n_unverified"]:
+        return f"{base} — WITH {fp['n_unverified']} CHECK(S) UNVERIFIED"
+    return base

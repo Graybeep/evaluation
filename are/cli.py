@@ -753,17 +753,53 @@ def cmd_calibrate(args) -> int:
         crit = [v for v in fails if any(f.severity == "CRITICAL" for f in v.findings)]
         crit_hit = sum(1 for v in crit
                        if {f.mode for f in v.findings if f.severity == "CRITICAL"} & expected)
+        # G5: the fingerprint is THREE-state. `confabulator` expects
+        # UNGROUNDED_CLAIM, a judge mode, and the judge is off by default — so a
+        # third of its declared fingerprint is never evaluated, and used to
+        # render exactly like a mode that was checked and found absent.
+        from are.score import suite as _S
+
+        fp_rows = [_S.Row(agent=agent, scenario_id=v.scenario_id,
+                          template_id="", category=v.category,
+                          modes={f.mode for f in v.findings}, outcome=v.outcome)
+                   for v in verdicts]
+        fp = _S.fingerprint(agent, expected, fp_rows,
+                            applicable=_S.applicability(scenarios),
+                            judge_used=bool(getattr(args, "judge", False)))
+
         attributions[agent] = {
             "fail_runs": len(fails), "attributed": hit,
             "attribution_rate": (hit / len(fails)) if fails else None,
             "critical_runs": len(crit), "critical_attributed": crit_hit,
             "critical_attribution_rate": (crit_hit / len(crit)) if crit else None,
             "expected_modes": sorted(expected),
+            "fingerprint": fp,
+            "fingerprint_verdict": _S.verdict_line(fp),
         }
         _p(f"   composite {sc.composite.point:.1f}   fails {len(fails)}   "
            f"attribution {attributions[agent]['attribution_rate']}")
 
     _p("")
+    _p("=" * 78)
+    _p(" DEFECT FINGERPRINT — three-state, because two hid the important one")
+    _p("=" * 78)
+    _p(" DETECTED = fired · NOT DETECTED = ran and found nothing (a real miss)")
+    _p(" NOT APPLICABLE = could not run at all — NOT a result about the agent")
+    _p("")
+    for agent in agents:
+        fp = attributions[agent]["fingerprint"]
+        _p(f"   {agent}  ->  {attributions[agent]['fingerprint_verdict']}")
+        if not fp["expected_modes"]:
+            _p("      (control: no defect expected)")
+        for mode, d in sorted(fp["per_mode"].items()):
+            extra = (f"  {d['scenarios']} scenario(s)" if d["state"] == "DETECTED"
+                     else (f"  <- {d['reason']}" if d["reason"] else ""))
+            _p(f"      {mode:<24} {d['state']:<16}{extra}")
+        if fp["n_unverified"]:
+            _p(f"      ** {fp['n_unverified']} of {fp['n_expected']} expected mode(s) "
+               f"were NEVER EVALUATED — do not read their absence as a clean result **")
+        _p("")
+
     _p("=" * 78)
     _p(" CALIBRATION — does the platform measure anything at all? (§5)")
     _p("=" * 78)
