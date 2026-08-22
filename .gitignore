@@ -9,3 +9,6 @@ pool/
 
 # local secrets — never committed (§7.1: key from env, never in the tree)
 .env.local
+
+# kappa labelling sheet + private key (study artifacts, not results)
+kappa/
