@@ -247,9 +247,15 @@ project's history is something that looked fine until it was executed.
 
 **Run the deck end to end, from a clean shell, before demo day.** Not read — *run*.
 
-**Executed 2026-08-22 against a fresh clone at `v1.6-demo`.** Every line below is a
-recorded result, not an expectation — and executing it corrected the first one, which had
-been written from memory rather than measured.
+**Executed three times, most recently 2026-08-23 against a fresh clone.** Every line below
+is a recorded result, not an expectation. Executing it has now caught three defects the
+written version could not: a wrong test count, a step that needed `report` run first, and
+a beat that crashed because `runs/` is gitignored — the last of which **exited 1, the same
+code that beat expects**, so the first rehearsal passed it for the wrong reason.
+
+**Measured timings.** Cold, in a fresh clone including building the comparison runs:
+**14s**. Warm: **7s**. `demo.sh` end to end: **50s**. The three-minute budget is not tight —
+it is almost entirely narration, which is where the attention should go.
 
 ```bash
 git clone --branch v1.6-demo <repo> /tmp/rehearse && cd /tmp/rehearse
