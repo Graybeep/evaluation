@@ -130,6 +130,15 @@ MUTATIONS = [
      "a silenced argument check must fail; with no positive control it previously "
      "rendered identically to 'never violated'"),
 
+    # T2. The subject is the GATE, not the arithmetic. Removing it restores exactly the
+    # state this closes: a kappa that returns a number no human labelled.
+    ("T2-kappa-gate", "T2 cohens_kappa gated behind human labels",
+     "are/score/stats.py",
+     '    if not human_labels:' + LF + '        raise KappaRequiresHumanLabels(',
+     '    if False:' + LF + '        raise KappaRequiresHumanLabels(',
+     "an ungated kappa returns judge-vs-judge self-consistency, which reads as "
+     "calibration and is not"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {

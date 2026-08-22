@@ -177,12 +177,45 @@ class Kappa:
                 "interpretation": self.interpretation}
 
 
-def cohens_kappa(a: list, b: list, bootstrap: int = 2000, seed: int = 7) -> Kappa:
-    """Cohen's kappa with a percentile bootstrap CI.
+class KappaRequiresHumanLabels(RuntimeError):
+    """`cohens_kappa` was called without human labels. See §11.1."""
+
+
+def cohens_kappa(a: list, b: list, bootstrap: int = 2000, seed: int = 7,
+                 *, human_labels: bool = False) -> Kappa:
+    """Cohen's kappa with a percentile bootstrap CI. **Gated — see below.**
 
     Chance-corrected on purpose: raw agreement flatters any rater pair on a skewed label
     distribution, and judge-eligible traces are heavily skewed toward "no finding".
+
+    ## Why this raises by default (§7.10)
+
+    This function was implemented and then called from nowhere. That is a worse state than
+    not having it: a reader skimming `score/stats.py` sees a kappa implementation next to
+    the bootstrap and the McNemar test and reasonably concludes agreement **was measured**.
+    Same family as `judge_version()` returning `"unavailable"` while the judge was
+    answering — the artifact says one thing and the system does another.
+
+    Deleting it is the wrong fix, because the maths is correct and §11.1 names the κ study
+    as the one genuinely closable gap. So it is **gated instead of removed**: reachable,
+    reviewable, and impossible to reach by accident.
+
+    The gate is not about the arithmetic — κ computes fine on any two label lists. It is
+    about **what the number would mean**. Against judge-vs-judge labels it measures the
+    judge's *self-consistency*, which is not calibration and would be read as calibration.
+    Only human labels make it the statistic §6.3 needs, and none have been produced.
+
+    Pass `human_labels=True` only when `a` and `b` are genuinely independent human labels
+    (or one human set and one judge set). That flag is a claim about provenance, and it is
+    the caller's to make honestly — nothing here can check it.
     """
+    if not human_labels:
+        raise KappaRequiresHumanLabels(
+            "cohens_kappa() requires human labels and none exist in this repo (§11.1). "
+            "No agreement study has been run, so any kappa computed here would measure "
+            "judge-vs-judge self-consistency and be read as calibration. If you have "
+            "produced real human labels, pass human_labels=True and record how they were "
+            "collected. Do not pass it to silence this error.")
     if len(a) != len(b):
         raise ValueError("label lists must be the same length")
     n = len(a)
