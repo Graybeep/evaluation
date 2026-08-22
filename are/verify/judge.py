@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from are.probes import corpus
 from are.runner.cache import ResponseCache
-from are.runner.llm import LLMClient, LLMUnavailable, api_key_present
+from are.runner.llm import MODELS, LLMClient, LLMUnavailable, api_key_present
 from are.schema.scenario import Scenario
 from are.schema.trace import RunResult
 from are.schema.verdict import Finding
@@ -78,7 +78,18 @@ class JudgeResult:
 
 
 def judge_version(client: LLMClient | None = None) -> str:
-    model = client.model if client else "unavailable"
+    """The string recorded in every judge-derived finding and in `selftest`.
+
+    Resolves the configured model when no client is handed in. The previous
+    form returned `+unavailable` in that case — so a live run in which the judge
+    demonstrably answered still recorded its version as "unavailable", which is
+    the wrong kind of wrong: it understates provenance on exactly the runs where
+    provenance matters most. `unavailable` is now reserved for the case it
+    actually describes, no configured model at all.
+    """
+    if client is not None:
+        return f"{PROMPT_VERSION}+{client.model}"
+    model = MODELS.get("judge") or "unavailable"
     return f"{PROMPT_VERSION}+{model}"
 
 
