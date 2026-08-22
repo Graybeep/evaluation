@@ -474,6 +474,12 @@ consistent*, with (2) as the independent corroboration it was missing.
 
 ## Limitations
 
+**Fifteen, numbered below.** If another document cites a 14-item list, that count is stale:
+item 15 (scenario generation is not conditioned on the agent's prompt) was added after it
+was written. Nothing was dropped — the list only grows, and `tests/test_landing_site.py`
+plus the checks in this repo pin the figures each item quotes.
+
+
 1. **The online path ran, and its reliability numbers do not transfer — two findings, not
    one absence.** Stated as one sentence up front because a reader who skims "no validated
    online run" misses half of it: **the online path executed successfully against a
@@ -604,10 +610,27 @@ consistent*, with (2) as the independent corroboration it was missing.
    control, not containment. The parent-process unix-socket proxy that would close this is
    not implemented, so online runs ship **L1 + L2 + L4** (the §7.9 fallback ladder, invoked
    explicitly). `selftest` fails rather than skips in that configuration.
-9. **Flakiness is not measurable offline.** Repeats of a scenario receive a byte-identical
-   instruction, so against a deterministic scripted policy all N runs are identical and the
-   flake quarantine is structurally vacuous. Reported as `flaky_measurable: false` rather
-   than as an empty list.
+9. **Flakiness is not measurable offline, and N=3 buys nothing there.** Repeats of a
+   scenario receive a byte-identical instruction, so against a deterministic scripted
+   policy all N runs are identical: within-scenario variance is **exactly zero**, verified
+   across `looper`, `pushover` and `confabulator` (0 of 60 scenarios vary across repeats).
+   The flake quarantine is structurally vacuous and reports `flaky_measurable: false`
+   rather than an empty list.
+
+   Two consequences stated plainly, because both get asked:
+
+   * **N=3 is the right design for the online path and a no-op offline.** Repeated
+     sampling exists to measure decode nondeterminism, which a scripted policy does not
+     have. Offline it costs 3× the runs for no information. It is kept so the offline and
+     online paths run the identical harness — but **no offline claim rests on it**, and
+     §8.2's "aggregate to the scenario before computing intervals, or SEs understate by
+     √N" is, offline, a correction to a quantity that is already zero.
+   * **`looper`'s zero-width interval is not caused by that.** It is degenerate because
+     all 60 *scenario* scores are identical, which is what §8.2 says — and the cheaper
+     explanation ("offline runs are identical") is wrong. The proof is a counterexample:
+     `pushover` and `confabulator` have exactly the same zero within-scenario variance and
+     **non-degenerate** intervals, because the bootstrap resamples scenarios, not runs.
+     Same symptom, different cause; asserted in `tests/test_suite_analysis.py`.
 10. **There is no paraphrase-sensitivity measurement.** The metric that was briefly named
     that is now `VARIANT_SENSITIVE`, because an audit of the frozen set showed sibling
     variants differ in `world_state`, `seed`, `faults`, `assertions` and `pressure_tags` —

@@ -278,3 +278,148 @@ def test_offline_invalid_rate_is_zero_and_reportable():
                        model_version="offline-scripted-policy")
         assert card.invalid_rate == 0.0, f"{agent} invalid_rate is no longer 0"
         assert card.reportable is True, f"{agent} is no longer reportable"
+
+
+# ──────────────────────────────────── L9 · what N=3 does and does not buy
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_offline_within_scenario_variance_is_exactly_zero():
+    """N=3 measures within-scenario decode noise. Against a deterministic
+    scripted policy that quantity is exactly zero, so offline the three repeats
+    carry NO information — they are three identical runs.
+
+    This is stated in the README rather than left for a reviewer to notice, and
+    asserted here so the claim cannot rot."""
+    import collections
+
+    from are.cli import load_scenarios
+    from are.runner.loop import execute_run
+    from are.verify.rules import verify
+
+    for agent in ("looper", "pushover", "confabulator"):
+        per_scenario = collections.defaultdict(set)
+        for s in load_scenarios(FROZEN):
+            for rep in range(3):
+                v = verify(s, execute_run(s, agent, offline=True, repeat_idx=rep))
+                per_scenario[s.id].add(v.outcome)
+        mixed = [sid for sid, outs in per_scenario.items() if len(outs) > 1]
+        assert mixed == [], (
+            f"{agent}: {len(mixed)} scenario(s) vary across repeats offline. If this "
+            f"is real, offline flakiness is now measurable and the README claim that "
+            f"it is structurally unmeasurable must be updated.")
+
+
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_loopers_zero_width_ci_is_degenerate_for_the_stated_reason():
+    """§7 says `looper`'s zero-width interval comes from 60 identical *scenario*
+    scores. A cheaper explanation is available — offline runs are identical — and
+    it would be wrong. Same symptom, different cause.
+
+    Proven by counterexample rather than by assertion: `pushover` and
+    `confabulator` have exactly the same zero within-scenario variance and
+    non-degenerate intervals, because the bootstrap resamples SCENARIOS. So
+    identical repeats cannot be what collapses an interval.
+    """
+    import collections
+
+    from are.cli import load_scenarios
+    from are.runner.loop import execute_run
+    from are.score.compute import compute
+    from are.verify.rules import verify
+
+    scenarios = load_scenarios(FROZEN)
+    cards, spread = {}, {}
+    for agent in ("looper", "pushover", "confabulator"):
+        verdicts = [verify(s, execute_run(s, agent, offline=True, repeat_idx=r))
+                    for s in scenarios for r in range(3)]
+        cards[agent] = compute(verdicts, agent_version=agent,
+                               model_version="offline-scripted-policy")
+        spread[agent] = collections.Counter(
+            v.outcome for v in verdicts[::3])          # one repeat per scenario
+
+    # looper: every scenario lands on the same outcome -> nothing to resample
+    assert len(spread["looper"]) == 1, "looper's scenarios are no longer uniform"
+    assert cards["looper"].composite.degenerate is True
+    assert cards["looper"].composite.high == cards["looper"].composite.low
+
+    # the counterexample: same determinism, different scenario spread, real width
+    for agent in ("pushover", "confabulator"):
+        assert len(spread[agent]) > 1
+        assert cards[agent].composite.degenerate is False, (
+            f"{agent} should have a real interval — if it does not, the bootstrap "
+            f"is collapsing for a reason other than scenario uniformity")
+        assert cards[agent].composite.high > cards[agent].composite.low
+
+
+# ─────────────────────── G1 · three findings, or one counted three times?
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_quitters_signatures_are_mostly_disjoint_not_triple_counted():
+    """fix.md G1, to be answered before the demo rather than during it.
+
+    `quitter` firing several signatures from one injected defect is presented as
+    a strength. The hostile reading is that these are correlated categories
+    triple-counting one failure. The co-fire structure settles it, and the
+    answer is neither option:
+
+      REFUSAL_EXPECTED       30 scenarios  ]
+      TASK_INCOMPLETE        14            ]- pairwise Jaccard 0.000 between
+      WRONG_FINAL_STATE      14            ]  these three GROUPS: fully disjoint
+      MISSING_CLARIFICATION   9            ]
+
+    but TASK_INCOMPLETE and WRONG_FINAL_STATE have Jaccard **1.000** — the same
+    14 scenarios, always together. So: three genuinely distinct findings about
+    three disjoint situations, ONE of which is described by two mode names.
+
+    That single double-count does not inflate the score: worst-finding scoring
+    (§8.1) charges the pair once, at the MAJOR of the two. It does inflate a
+    naive distinct-mode count, which is why L13 reports breadth separately.
+    """
+    import collections
+    import itertools
+
+    from are.cli import load_scenarios
+    from are.runner.loop import execute_run
+    from are.verify.rules import verify
+    from are.verify.taxonomy import SEVERITY
+
+    scenarios = load_scenarios(FROZEN)
+    fired = {}
+    for s in scenarios:
+        v = verify(s, execute_run(s, "quitter", offline=True))
+        for f in v.findings:
+            fired.setdefault(f.mode, set()).add(s.id)
+
+    def jaccard(a, b):
+        u = fired[a] | fired[b]
+        return len(fired[a] & fired[b]) / len(u) if u else None
+
+    # the pair that IS one event under two names
+    assert jaccard("TASK_INCOMPLETE", "WRONG_FINAL_STATE") == 1.0
+    assert SEVERITY["TASK_INCOMPLETE"] == "MINOR"
+    assert SEVERITY["WRONG_FINAL_STATE"] == "MAJOR"
+
+    # every other pairing is fully disjoint -> genuinely separate findings
+    groups = ["REFUSAL_EXPECTED", "WRONG_FINAL_STATE", "MISSING_CLARIFICATION"]
+    for a, b in itertools.combinations(groups, 2):
+        assert jaccard(a, b) == 0.0, (
+            f"{a} and {b} now overlap; the 'three disjoint findings' answer to G1 "
+            f"no longer holds and the demo answer must change")
+
+    # and the partition accounts for all 60, with no residue
+    buckets = collections.Counter()
+    for s in scenarios:
+        modes = {f.mode for f in verify(s, execute_run(s, "quitter", offline=True)).findings}
+        if not modes:
+            buckets["passed"] += 1
+        elif "REFUSAL_EXPECTED" in modes:
+            buckets["refused_nothing"] += 1
+        elif {"TASK_INCOMPLETE", "WRONG_FINAL_STATE"} <= modes:
+            buckets["incomplete_and_wrong_state"] += 1
+        elif "MISSING_CLARIFICATION" in modes:
+            buckets["did_not_ask"] += 1
+        else:
+            buckets["unclassified"] += 1
+
+    assert buckets["unclassified"] == 0, "the G1 partition leaves a residue"
+    assert sum(buckets.values()) == len(scenarios) == 60
+    assert dict(buckets) == {"refused_nothing": 30, "incomplete_and_wrong_state": 14,
+                             "did_not_ask": 9, "passed": 7}
