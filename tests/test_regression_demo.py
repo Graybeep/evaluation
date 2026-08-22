@@ -93,9 +93,7 @@ def test_worst_finding_scoring_is_blind_to_a_large_real_improvement():
 # ────────────────────────────────────────────────────── the two comparisons
 RUNS = Path("runs")
 V1, V2, V1B = RUNS / "p3-v1", RUNS / "p3-v2", RUNS / "p3-v1b"
-_have = all((d / "verdicts.json").exists() for d in (V1, V2, V1B))
-needs_runs = pytest.mark.skipif(
-    not _have, reason="run p3-v1 / p3-v2 / p3-v1b first (see the P3 commit)")
+
 
 
 def compare(a, b, *extra):
@@ -103,8 +101,7 @@ def compare(a, b, *extra):
                            str(a), str(b), *extra], capture_output=True, text=True)
 
 
-@needs_runs
-def test_a_real_regression_is_detected_and_blocks_the_build():
+def test_a_real_regression_is_detected_and_blocks_the_build(looper_ab_and_null):
     r = compare(V2, V1, "--ci")
     assert r.returncode == CI_REGRESSION
     assert "REGRESSION" in r.stdout
@@ -114,8 +111,7 @@ def test_a_real_regression_is_detected_and_blocks_the_build():
     assert blob["overall_flips"]["a_fail_b_pass"] == 0, "a pure regression, no offsetting wins"
 
 
-@needs_runs
-def test_bh_is_applied_across_categories_and_does_not_rubber_stamp():
+def test_bh_is_applied_across_categories_and_does_not_rubber_stamp(looper_ab_and_null):
     """SPEC asks specifically that BH be asserted. The persuasive detail is that
     it does NOT mark everything significant: `efficiency` has n=3 and cannot
     reach significance even though every one of its scenarios flipped."""
@@ -132,16 +128,14 @@ def test_bh_is_applied_across_categories_and_does_not_rubber_stamp():
         "…and that is despite every efficiency scenario flipping, which is the point")
 
 
-@needs_runs
-def test_an_improvement_is_detected_but_does_not_block():
+def test_an_improvement_is_detected_but_does_not_block(looper_ab_and_null):
     r = compare(V1, V2, "--ci")
     assert r.returncode == CI_OK
     assert "IMPROVEMENT" in r.stdout
 
 
 # ──────────────────────────────────────────────────────────── the A/A null
-@needs_runs
-def test_aa_comparison_raises_no_alarm():
+def test_aa_comparison_raises_no_alarm(looper_ab_and_null):
     """The same agent against itself, same seeds. Zero flips, no verdict, exit 0.
 
     A tracker that cannot stay quiet on no change would flag every release."""
@@ -159,8 +153,7 @@ def test_aa_comparison_raises_no_alarm():
             f"A/A flagged {c['category']} as significant — the tracker is crying wolf")
 
 
-@needs_runs
-def test_the_aa_null_is_honest_about_what_it_proves():
+def test_the_aa_null_is_honest_about_what_it_proves(looper_ab_and_null):
     """§7.10 applied to this test itself.
 
     Offline the two A/A runs are byte-identical, because the policy is

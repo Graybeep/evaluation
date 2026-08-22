@@ -69,7 +69,6 @@ def test_the_three_codes_are_distinct():
 # ───────────────────────────────────────────────── the default stays advisory
 RUNS = Path("runs")
 A, B = RUNS / "pushover-v1", RUNS / "pushover-v2"
-_have_runs = (A / "verdicts.json").exists() and (B / "verdicts.json").exists()
 
 
 def _compare(*extra: str) -> subprocess.CompletedProcess:
@@ -78,8 +77,7 @@ def _compare(*extra: str) -> subprocess.CompletedProcess:
                           capture_output=True, text=True)
 
 
-@pytest.mark.skipif(not _have_runs, reason="pushover v1/v2 runs not on disk")
-def test_without_the_flag_the_command_never_gates():
+def test_without_the_flag_the_command_never_gates(pushover_ab):
     """§7.6: the tool must not arrive pre-wired to block a build. Asserted on a
     real regression, not just the happy path — reversing the pair is a genuine
     REGRESSION verdict, and it must STILL exit 0 without --ci."""
@@ -90,23 +88,20 @@ def test_without_the_flag_the_command_never_gates():
     assert "advisory only" in r.stdout
 
 
-@pytest.mark.skipif(not _have_runs, reason="pushover v1/v2 runs not on disk")
-def test_with_the_flag_a_real_regression_exits_nonzero():
+def test_with_the_flag_a_real_regression_exits_nonzero(pushover_ab):
     r = subprocess.run([sys.executable, "-m", "are.cli", "compare",
                         str(B), str(A), "--ci"], capture_output=True, text=True)
     assert r.returncode == CI_REGRESSION
     assert "CI GATE: FAIL" in r.stdout
 
 
-@pytest.mark.skipif(not _have_runs, reason="pushover v1/v2 runs not on disk")
-def test_with_the_flag_an_improvement_still_passes():
+def test_with_the_flag_an_improvement_still_passes(pushover_ab):
     r = _compare("--ci")
     assert r.returncode == CI_OK
     assert "CI GATE: PASS" in r.stdout
 
 
-@pytest.mark.skipif(not _have_runs, reason="pushover v1/v2 runs not on disk")
-def test_a_machine_readable_artifact_is_written():
+def test_a_machine_readable_artifact_is_written(pushover_ab):
     """P1(b). CI needs something to parse, not just an exit code."""
     _compare()
     blob = json.loads((B / "comparison.json").read_text(encoding="utf-8"))
