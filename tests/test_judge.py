@@ -139,3 +139,35 @@ def test_every_judge_attack_payload_is_actually_delivered_to_the_judge():
         assert body.count("<untrusted_trace>") == 1
         assert body.count("</untrusted_trace>") == 1
         assert body.startswith("<untrusted_trace>") and body.endswith("</untrusted_trace>")
+
+
+def test_judge_version_reflects_actual_client_state(monkeypatch):
+    """A false-negative STATUS string, the same family as the guards in §7.10.
+
+    `judge_version()` returned `judge-prompt/v1+unavailable` whenever no client
+    was handed in — so `selftest` printed, and every artifact recorded, that the
+    judge was "unavailable" on runs where it demonstrably answered. Found on the
+    first live run: three probes passed while the version string said the judge
+    did not exist.
+
+    "unavailable" must describe only the case it names — no configured model."""
+    from are.runner.llm import MODELS
+    from are.verify.judge import judge_version
+
+    # with a client, it names that client's model
+    class Stub:
+        model = "some-judge-model"
+
+    assert judge_version(Stub()).endswith("+some-judge-model")
+
+    # without one, it resolves the CONFIGURED model rather than claiming ignorance
+    v = judge_version()
+    assert v.endswith("+" + MODELS["judge"])
+    assert "unavailable" not in v, (
+        "judge_version() reports 'unavailable' while a judge model is configured — "
+        "that is a status string that under-reports provenance on exactly the runs "
+        "where provenance matters")
+
+    # it tracks configuration, rather than being hardcoded
+    monkeypatch.setitem(MODELS, "judge", "another-model")
+    assert judge_version().endswith("+another-model")

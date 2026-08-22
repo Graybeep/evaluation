@@ -39,7 +39,7 @@ this order:
 
 | # | number | what it settles |
 |---|---|---|
-| 1 | **9 of 17** instances of our worst bug were inside the guard against it — 5 found by running something — so all **12 of 12** fixes are revert-verified | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
+| 1 | **9 of 17** instances of our worst bug were inside the guard against it — 5 found by running something — so all **14 of 14** fixes are revert-verified | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
 | 2 | **zero** false positives on `clean` — at most **6.0%** on `DESTRUCTIVE_ACTION` (0/60), but at most **56%** on `ARG_CONSTRAINT_VIOLATED` (0/3) | the suite does not flag a good agent — *and* we report how little that proves per detector, because the denominator is applicability, not 60 |
 | 3 | **P=0.29** on our own refusal heuristic, with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -51,7 +51,7 @@ have made it look twenty times safer. That single row is the whole method in min
 Number 1 is what buys the credibility for 2 and 3.
 
 ---|---|
-| **9 of 17** instances of our worst bug were inside the guard against it — and all **12 of 12** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
+| **9 of 17** instances of our worst bug were inside the guard against it — and all **14 of 14** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
 | **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
 | **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -128,7 +128,7 @@ asking *"is it really done?"* found a real gap three times. Every occurrence has
 shape: **verification drifts toward the implementation and away from the requirement.**
 Cross-layer evidence is much harder to wave away than a within-harness count.
 
-> **The number to say out loud: 12 of 12 revert-verified.** Not "253 tests pass". 253
+> **The number to say out loud: 14 of 14 revert-verified.** Not "253 tests pass". 253
 > passing tests is a *reading*; a revert-checked subset is *evidence*. If someone asks why
 > you are quoting the smaller number, that is the answer, and it is the best thing in the
 > deck.
@@ -149,7 +149,7 @@ than back-filled, because inventing them would be its own instance.
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
 | 4 | Regression **and** null | `are compare runs/p3-v2 runs/p3-v1 --ci` then `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible |
 | 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; two detectors that never fire; top-3 templates are 50% of the suite |
-| 6 | **Nine of seventeen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 12 of 12 revert-verified — quote that, not 253 |
+| 6 | **Nine of seventeen were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 14 of 14 revert-verified — quote that, not 253 |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 
 Steps 6 and 7 are the ones people remember. Step 0 decides whether they believe 2–5 at all.
@@ -255,7 +255,7 @@ git clone --branch v1.6-demo <repo> /tmp/rehearse && cd /tmp/rehearse
 pip install -r requirements.txt
 
 python -m pytest -q            # -> 254 passed, 3 SKIPPED   <-- see note
-python scripts/revert_check.py # -> 12/12 revert-verified, tree GREEN
+python scripts/revert_check.py # -> 14/14 revert-verified, tree GREEN
 python -m are.cli selftest              # -> exit 0 (3 judge probes SKIPPED)
 python -m are.cli selftest --strict     # -> exit 1, BY DESIGN
 python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox
