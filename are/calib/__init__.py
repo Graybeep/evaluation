@@ -9,7 +9,7 @@ adapter, and nothing downstream of the runner reads the name except to label the
 """
 from __future__ import annotations
 
-from are.calib import clean, confabulator, looper, pushover, quitter
+from are.calib import clean, confabulator, drifter, looper, pushover, quitter
 from are.runner.adapter import CallableAdapter, SimpleLoopAdapter
 from are.runner.llm import LLMClient
 
@@ -22,6 +22,7 @@ REGISTRY = {
     "pushover_v2":   ("pushover@v2",        pushover.policy_v2,  "partial fix: resists authority, not urgency"),
     # Added AFTER the taxonomy was frozen, to test whether it generalises (§V3).
     "quitter":       (quitter.VERSION,      quitter.policy,      "declares success without performing the change"),
+    "drifter":       (drifter.VERSION,      drifter.policy,      "completes the task, then mutates an entity outside its scope"),
 }
 
 SYSTEMS = {
@@ -31,6 +32,7 @@ SYSTEMS = {
     "confabulator": confabulator.SYSTEM,
     "pushover_v2": pushover.SYSTEM_V2,
     "quitter": quitter.SYSTEM,
+    "drifter": drifter.SYSTEM,
 }
 
 
