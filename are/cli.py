@@ -817,6 +817,137 @@ def cmd_calibrate(args) -> int:
     return ACCEPTANCE_EXIT[verdict]
 
 
+# --------------------------------------------------------------- suite analysis
+def cmd_analyse(args) -> int:
+    """Properties of the SUITE, not of an agent (fix.md Tier 0).
+
+    Everything here comes from artifacts that already exist: one offline pass
+    over the frozen set per agent, then five reports. No new API calls, no
+    re-freeze, no change to any published score.
+    """
+    from are.score import suite as S
+
+    scenarios = load_scenarios(args.scenarios)
+    agents = args.agents or ["clean", "confabulator", "looper", "pushover"]
+
+    rows: list[S.Row] = []
+    for agent in agents:
+        _p(f"running {agent} on {len(scenarios)} scenarios (offline) ...")
+        for sc in scenarios:
+            res = execute_run(sc, agent, offline=True)
+            v = verify(sc, res)
+            rows.append(S.Row(agent=agent, scenario_id=sc.id,
+                              template_id=sc.template_id, category=sc.category,
+                              modes={f.mode for f in v.findings},
+                              outcome=v.outcome))
+
+    app = S.applicability(scenarios)
+    reports = {
+        "detector_cofire": S.cofire_matrix(rows),
+        "suite_discrimination": S.discrimination(rows),
+        "control_false_positives": S.false_positives(rows, applicable=app),
+        "template_coverage": S.template_coverage(scenarios),
+        "distinct_modes": S.distinct_modes(rows),
+    }
+
+    out = Path(args.out or "reports")
+    out.mkdir(parents=True, exist_ok=True)
+    for name, payload in reports.items():
+        (out / f"{name}.json").write_text(
+            json.dumps(payload, indent=2, default=str), encoding="utf-8")
+
+    # ---------------------------------------------------------------- render
+    co = reports["detector_cofire"]
+    _p("")
+    _p("=" * 78)
+    _p(" DETECTOR CO-FIRING (G3)")
+    _p("=" * 78)
+    _p(f" {len(co['modes'])} rule detectors over {co['n_observations']} observations")
+    fired = {m: c for m, c in co["fire_counts"].items() if c}
+    for m, c in sorted(fired.items(), key=lambda kv: -kv[1]):
+        _p(f"   {m:<26} fired {c}")
+    if co["never_fired"]:
+        _p(f"   NEVER FIRED ({len(co['never_fired'])}): {', '.join(co['never_fired'])}")
+        _p("     ^ unexercised by this suite. Not evidence of correctness.")
+    _p("")
+    if co["correlated_pairs"]:
+        _p(f" correlated pairs (Jaccard > {co['threshold']}):")
+        for pr in co["correlated_pairs"]:
+            _p(f"   {pr['a']} + {pr['b']}  J={pr['jaccard']:.3f} "
+               f"({pr['together']} together / {pr['a_fires']} vs {pr['b_fires']})")
+            if pr["confounded_by_single_agent"]:
+                _p(f"     ^ exercised by ONE agent only ({pr['agents_exercising'][0]}). "
+                   f"Nothing in this suite pulls them apart, so the correlation is a "
+                   f"finding about COVERAGE, not proof the detectors are redundant.")
+            else:
+                _p(f"     ^ exercised by {len(pr['agents_exercising'])} agents and still "
+                   f"inseparable: these are one detector wearing two names.")
+    else:
+        _p(" no pair exceeds the correlation threshold")
+    if co["undefined_pairs"]:
+        _p(f" {len(co['undefined_pairs'])} pair(s) UNDEFINED (neither detector ever "
+           f"fired) — null, not 0.0")
+
+    di = reports["suite_discrimination"]
+    _p("")
+    _p("=" * 78)
+    _p(" SUITE DISCRIMINATION (G4)")
+    _p("=" * 78)
+    _p(f" {di['n_scenarios']} scenarios x {di['n_agent_pairs']} agent pairs")
+    _p(f"   separating >=1 pair   {di['separating']}")
+    _p(f"   separating 0 pairs    {di['non_separating']}   <- no comparative information")
+    _p(f"   incomplete            {di['incomplete']}")
+    _p(f"   partition sums        {'YES' if di['partition_sums'] else 'NO -- residue!'}")
+    _p(f" EFFECTIVE SUITE SIZE: {di['effective_suite_size']} of {di['n_scenarios']}")
+
+    fp = reports["control_false_positives"]
+    _p("")
+    _p("=" * 78)
+    _p(" FALSE POSITIVES ON THE CONTROL AGENT (G2)")
+    _p("=" * 78)
+    if fp.get("state") != "OK":
+        _p(f" {fp.get('state')} - {fp.get('note')}")
+    else:
+        _p(f" control: {fp['control']}   (upper Wilson bound; denominator is "
+           f"scenarios where the detector APPLIES)")
+        for m, v in sorted(fp["per_detector"].items()):
+            if v["state"] != "OK":
+                _p(f"   {m:<26} NOT APPLICABLE on any scenario - no opportunity to "
+                   f"be wrong")
+                continue
+            _p(f"   {m:<26} {v['false_positives']}/{v['applicable_n']:<3} "
+               f"rate {v['rate']:.3f}   at most {v['upper_bound']:.3f}")
+        flagged = fp["detectors_with_any_false_positive"]
+        _p("")
+        _p(f" detectors that flagged the control: "
+           f"{', '.join(flagged) if flagged else 'NONE'}")
+
+    tc = reports["template_coverage"]
+    _p("")
+    _p("=" * 78)
+    _p(" TEMPLATE COVERAGE (G6)")
+    _p("=" * 78)
+    _p(f" {tc['n_templates']} templates -> {tc['n_scenarios']} scenarios "
+       f"(sums: {'YES' if tc['sums_to_total'] else 'NO'})")
+    for t in tc["per_template"]:
+        bar = "#" * max(1, round(t["share"] * 40))
+        _p(f"   {t['template_id']:<28} {t['scenarios']:>3}  {t['share']:.1%}  {bar}")
+    _p(f" top-3 templates account for {tc['top3_share']:.1%} of the suite")
+
+    dm = reports["distinct_modes"]
+    _p("")
+    _p("=" * 78)
+    _p(" DISTINCT FAILURE MODES PER AGENT (L13)")
+    _p("=" * 78)
+    _p(" worst-finding scoring hides breadth; this is additive, no score changes")
+    for a, v in dm.items():
+        _p(f"   {a:<16} distinct_modes: {v['distinct_modes']:<3} "
+           f"{', '.join(v['modes']) if v['modes'] else '(none)'}")
+    _p("=" * 78)
+    _p(f"wrote {len(reports)} report(s) -> {out}")
+    return 0
+
+
 # ---------------------------------------------------------------- selftest
 def cmd_selftest(args) -> int:
     ok = True
@@ -1007,6 +1138,14 @@ def build_parser() -> argparse.ArgumentParser:
     mc.add_argument("--max-tool-calls", type=int)
     mc.add_argument("--max-tokens", type=int)
     mc.set_defaults(func=cmd_mcp_serve)
+
+    an = sub.add_parser("analyse", help="suite-level properties: detector co-firing, "
+                                        "discrimination, control false positives, "
+                                        "template coverage")
+    an.add_argument("--scenarios", default="frozen/frozen_scenarios.json")
+    an.add_argument("--agents", nargs="*")
+    an.add_argument("--out", default="reports")
+    an.set_defaults(func=cmd_analyse)
 
     st = sub.add_parser("selftest", help="sandbox, isolation, judge-attack and scrub checks")
     st.add_argument("--strict", action="store_true",

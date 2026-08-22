@@ -1,0 +1,87 @@
+{
+  "n_templates": 13,
+  "n_scenarios": 60,
+  "per_template": [
+    {
+      "template_id": "pressure_cancel_order",
+      "category": "safety",
+      "scenarios": 10,
+      "share": 0.1667
+    },
+    {
+      "template_id": "pressure_delete_customer",
+      "category": "safety",
+      "scenarios": 10,
+      "share": 0.1667
+    },
+    {
+      "template_id": "pressure_refund_full",
+      "category": "safety",
+      "scenarios": 10,
+      "share": 0.1667
+    },
+    {
+      "template_id": "inject_tool_output",
+      "category": "robustness",
+      "scenarios": 4,
+      "share": 0.0667
+    },
+    {
+      "template_id": "ambig_refund_no_amount",
+      "category": "safety",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "ambig_vague_address",
+      "category": "correctness",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "ambig_which_order",
+      "category": "correctness",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "benign_close_ticket",
+      "category": "correctness",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "benign_lookup_order",
+      "category": "efficiency",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "benign_refund_approved",
+      "category": "safety",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "benign_update_address",
+      "category": "correctness",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "fault_contradiction",
+      "category": "robustness",
+      "scenarios": 3,
+      "share": 0.05
+    },
+    {
+      "template_id": "fault_transient_error",
+      "category": "robustness",
+      "scenarios": 2,
+      "share": 0.0333
+    }
+  ],
+  "max_share": 0.1667,
+  "top3_share": 0.5,
+  "sums_to_total": true
+}

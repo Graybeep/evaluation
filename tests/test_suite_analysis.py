@@ -1,0 +1,233 @@
+"""Suite-level analysis (fix.md Tier 0): co-firing, discrimination, control
+false positives, template coverage, distinct modes.
+
+These report properties of the *suite*, so the tests here are mostly about the
+shape of the answer rather than its value — specifically about the three ways
+this repo has previously turned "not measured" into "measured clean":
+
+  * a cell that could not be computed must be `None`, never `0.0`;
+  * a partition must account for every scenario, with no residue;
+  * a rate must carry the denominator it was computed against.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from are.score.suite import (ALWAYS_APPLICABLE, RULE_MODES, TRIGGERING_ASSERTION,
+                             Row, applicability, cofire_matrix, discrimination,
+                             distinct_modes, false_positives, template_coverage)
+
+FROZEN = Path("frozen/frozen_scenarios.json")
+
+
+def R(agent, sid, modes=(), outcome="FAIL", template="t", category="safety"):
+    return Row(agent=agent, scenario_id=sid, template_id=template,
+               category=category, modes=set(modes), outcome=outcome)
+
+
+# ────────────────────────────────────────────────────────── G3 · co-firing
+def test_matrix_is_fully_populated_no_silent_gaps():
+    """fix.md's verify criterion: every cell present. A missing cell read as
+    'uncorrelated' is the same fail-open as a 0 for 'nothing evaluated'."""
+    rows = [R("a", "s1", ["DESTRUCTIVE_ACTION"]), R("b", "s2", ["TOOL_LOOP"])]
+    m = cofire_matrix(rows)["matrix"]
+    assert set(m) == set(RULE_MODES)
+    for a in RULE_MODES:
+        assert set(m[a]) == set(RULE_MODES), f"row {a} has missing cells"
+
+
+def test_pair_that_never_fired_is_null_not_zero():
+    """The load-bearing one. Two detectors that never fired have an UNDEFINED
+    relationship; 0.0 would render as 'independent' and be read as evidence."""
+    rows = [R("a", "s1", ["DESTRUCTIVE_ACTION"])]
+    out = cofire_matrix(rows)
+    assert out["matrix"]["TIMEOUT"]["TOOL_LOOP"] is None
+    assert out["matrix"]["DESTRUCTIVE_ACTION"]["TIMEOUT"] == 0.0, (
+        "one fired and the other did not — that IS a real zero")
+    assert {"a": "TIMEOUT", "b": "TOOL_LOOP"} in out["undefined_pairs"] or \
+           {"a": "TOOL_LOOP", "b": "TIMEOUT"} in out["undefined_pairs"]
+
+
+def test_diagonal_is_the_raw_fire_count():
+    rows = [R("a", f"s{i}", ["TOOL_LOOP"]) for i in range(4)]
+    out = cofire_matrix(rows)
+    assert out["matrix"]["TOOL_LOOP"]["TOOL_LOOP"] == 4.0
+    assert out["fire_counts"]["TOOL_LOOP"] == 4
+
+
+def test_perfect_correlation_is_flagged():
+    rows = [R("a", f"s{i}", ["TOOL_LOOP", "BUDGET_EXCEEDED"]) for i in range(5)]
+    pairs = cofire_matrix(rows)["correlated_pairs"]
+    assert any({p["a"], p["b"]} == {"TOOL_LOOP", "BUDGET_EXCEEDED"} for p in pairs)
+
+
+def test_single_agent_correlation_is_labelled_as_confounded():
+    """A pair only one agent exercises is correlated because nothing separates
+    them — a coverage finding, not proof of redundancy. Reporting it as the
+    latter would overstate the result."""
+    one = [R("looper", f"s{i}", ["TOOL_LOOP", "BUDGET_EXCEEDED"]) for i in range(5)]
+    p = cofire_matrix(one)["correlated_pairs"][0]
+    assert p["confounded_by_single_agent"] is True
+    assert p["agents_exercising"] == ["looper"]
+
+    two = one + [R("x", f"t{i}", ["TOOL_LOOP", "BUDGET_EXCEEDED"]) for i in range(5)]
+    p2 = cofire_matrix(two)["correlated_pairs"][0]
+    assert p2["confounded_by_single_agent"] is False
+    assert p2["agents_exercising"] == ["looper", "x"]
+
+
+def test_never_fired_detectors_are_named():
+    rows = [R("a", "s1", ["DESTRUCTIVE_ACTION"])]
+    assert "TIMEOUT" in cofire_matrix(rows)["never_fired"]
+
+
+# ─────────────────────────────────────────────── G4 · suite discrimination
+def test_partition_sums_with_no_residue():
+    """§6's quitter/MISSING_CLARIFICATION precedent: never accept a partition
+    that leaves scenarios unaccounted for."""
+    rows = [R("a", "s1", outcome="PASS"), R("b", "s1", outcome="FAIL"),
+            R("a", "s2", outcome="PASS"), R("b", "s2", outcome="PASS")]
+    out = discrimination(rows)
+    assert out["partition_sums"] is True
+    assert out["separating"] + out["non_separating"] + out["incomplete"] == out["n_scenarios"]
+
+
+def test_a_scenario_everyone_passes_separates_nothing():
+    rows = [R("a", "s1", outcome="PASS"), R("b", "s1", outcome="PASS")]
+    out = discrimination(rows)
+    assert out["non_separating"] == 1
+    assert out["effective_suite_size"] == 0, (
+        "a scenario carrying no comparative information must not inflate the "
+        "effective suite size")
+
+
+def test_scenario_missing_an_agent_is_incomplete_not_zero():
+    """Not run against every agent means it CANNOT be scored for separation —
+    a third state, not a zero."""
+    rows = [R("a", "s1", outcome="PASS"), R("b", "s1", outcome="FAIL"),
+            R("a", "s2", outcome="PASS")]                       # b never ran s2
+    out = discrimination(rows)
+    assert out["incomplete"] == 1 and out["incomplete_ids"] == ["s2"]
+    assert out["partition_sums"] is True
+
+
+# ──────────────────────────────────────── G2 · false positives on control
+def test_denominator_is_applicability_not_the_whole_suite():
+    """Dividing by 60 makes a detector that could only fire on 3 scenarios look
+    20x safer than it is."""
+    rows = [R("clean", f"s{i}", []) for i in range(60)]
+    app = {m: set() for m in RULE_MODES}
+    app["ARG_CONSTRAINT_VIOLATED"] = {"s0", "s1", "s2"}
+    out = false_positives(rows, applicable=app)
+    v = out["per_detector"]["ARG_CONSTRAINT_VIOLATED"]
+    assert v["applicable_n"] == 3, "denominator must be applicable scenarios"
+    assert v["upper_bound"] > 0.4, (
+        "0/3 knows almost nothing; the upper bound must say so loudly")
+
+
+def test_zero_applicability_is_not_applicable_not_a_clean_zero():
+    rows = [R("clean", "s1", [])]
+    out = false_positives(rows, applicable={m: set() for m in RULE_MODES})
+    v = out["per_detector"]["TIMEOUT"]
+    assert v["state"] == "NOT APPLICABLE"
+    assert v["rate"] is None and v["upper_bound"] is None, (
+        "no opportunity to be wrong is not a 0% false-positive rate")
+
+
+def test_upper_bound_is_reported_because_it_bounds_a_bad_thing():
+    rows = [R("clean", f"s{i}", []) for i in range(36)]
+    out = false_positives(rows, applicable={m: {f"s{i}" for i in range(36)}
+                                            for m in RULE_MODES})
+    v = out["per_detector"]["DESTRUCTIVE_ACTION"]
+    assert v["rate"] == 0.0
+    assert 0.05 < v["upper_bound"] < 0.15, (
+        "0/36 is 'at most ~10%', never '0%'")
+
+
+def test_a_flagged_control_is_surfaced():
+    rows = [R("clean", "s1", ["DESTRUCTIVE_ACTION"])]
+    out = false_positives(rows, applicable={m: {"s1"} for m in RULE_MODES})
+    assert "DESTRUCTIVE_ACTION" in out["detectors_with_any_false_positive"]
+
+
+def test_missing_control_is_reported_not_treated_as_clean():
+    out = false_positives([R("looper", "s1", ["TOOL_LOOP"])])
+    assert out["state"] == "MISSING"
+
+
+# ────────────────────────────────────────────────── applicability mapping
+def test_every_rule_detector_has_an_applicability_rule():
+    """An unmapped detector silently gets n=0 and disappears from G2."""
+    unmapped = [m for m in RULE_MODES
+                if m not in TRIGGERING_ASSERTION and m not in ALWAYS_APPLICABLE]
+    assert unmapped == [], f"detectors with no applicability rule: {unmapped}"
+
+
+# ─────────────────────────────────────────────── G6 · template coverage
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_template_coverage_sums_to_the_suite():
+    from are.cli import load_scenarios
+
+    sc = load_scenarios(FROZEN)
+    out = template_coverage(sc)
+    assert out["sums_to_total"] is True
+    assert out["n_scenarios"] == len(sc)
+    assert sum(t["scenarios"] for t in out["per_template"]) == len(sc)
+
+
+# ──────────────────────────────────────────────────── L13 · distinct modes
+def test_distinct_modes_is_additive_and_counts_breadth():
+    rows = [R("looper", "s1", ["TOOL_LOOP", "BUDGET_EXCEEDED"]),
+            R("looper", "s2", ["WRONG_FINAL_STATE"]),
+            R("clean", "s1", [])]
+    out = distinct_modes(rows)
+    assert out["looper"]["distinct_modes"] == 3
+    assert out["clean"]["distinct_modes"] == 0
+    assert out["looper"]["by_severity"]["MAJOR"]
+
+
+@pytest.mark.skipif(not FROZEN.exists(), reason="frozen set not generated")
+def test_reporting_distinct_modes_does_not_change_any_score():
+    """L13 is purely additive. Composite scoring must be byte-identical with
+    the new reporting in place, or this stopped being a report and became a
+    change to published numbers."""
+    from are.cli import load_scenarios
+    from are.runner.loop import execute_run
+    from are.score.compute import compute
+    from are.verify.rules import verify
+
+    sc = load_scenarios(FROZEN)[:12]
+    verdicts = [verify(s, execute_run(s, "looper", offline=True)) for s in sc]
+    before = compute(verdicts, model_version="offline-scripted-policy").composite.point
+
+    rows = [Row(agent="looper", scenario_id=s.id, template_id=s.template_id,
+                category=s.category, modes={f.mode for f in v.findings},
+                outcome=v.outcome) for s, v in zip(sc, verdicts)]
+    distinct_modes(rows)
+
+    after = compute(verdicts, model_version="offline-scripted-policy").composite.point
+    assert before == after
+
+
+# ─────────────────────────────────────────────────── emitted artifacts
+REPORTS = Path("reports")
+
+
+@pytest.mark.skipif(not (REPORTS / "detector_cofire.json").exists(),
+                    reason="run `python -m are.cli analyse` first")
+def test_emitted_reports_are_well_formed():
+    co = json.loads((REPORTS / "detector_cofire.json").read_text(encoding="utf-8"))
+    assert len(co["modes"]) == len(RULE_MODES)
+    # fix.md specified an 8x8 matrix from "8 independent rule detectors".
+    # There are 11; the spec was written against a stale count.
+    assert len(co["matrix"]) == 11
+
+    di = json.loads((REPORTS / "suite_discrimination.json").read_text(encoding="utf-8"))
+    assert di["partition_sums"] is True
+    assert di["n_scenarios"] == 60
+
+    tc = json.loads((REPORTS / "template_coverage.json").read_text(encoding="utf-8"))
+    assert tc["sums_to_total"] is True
