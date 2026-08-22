@@ -537,8 +537,8 @@ infer success from the absence of a failure signal.**
 
 ### The finding is the ratio, not the count
 
-**Seven of the fourteen instances below are in code written to prevent this exact bug**,
-and **three of those seven were found by the revert-check itself** — the mechanism caught
+**Eight of the fifteen instances below are in code written to prevent this exact bug**,
+and **four of those eight were found by mechanical checks, not by re-reading** — the mechanism caught
 instances the human reading never did. That is the result worth stating; "fourteen
 instances" is only the supporting detail.
 
@@ -548,7 +548,7 @@ layers**:
 | layer | instances | example |
 |---|---|---|
 | the harness | 11 | `is_irreversible` fail-open; `discard_rate` 0% for "nothing evaluated" |
-| its own guards | 3 (rows 12–14) | a partition flag that could never be False; a test that replaced a tautology **with another tautology** |
+| its own guards | 4 (rows 12–15) | a partition flag that could never be False; a test that replaced a tautology **with another tautology** |
 | the session doing the work | 3 | "is it really done?" found real gaps three times — each time because verification checked *what had been built* rather than *what the spec asked for* |
 
 One mechanism, three layers: **verification drifts toward the implementation and away from
@@ -598,7 +598,9 @@ mistake.
 | 13 | — | **L13** `distinct_modes` test | the helper returned the right number | the *artifact* was never checked; deleting the field from `Scorecard.as_dict()` left the suite green. Caught by the C1 revert sweep |
 | 14 | — | the test written to replace row 12 | `partition_sums is True`, `residue == []` | **a tautology test written to replace a tautology.** Both assertions are unconditionally true under the current code, so no mutation could kill it. Caught by running a coverage sweep over the tests C1 itself had just added |
 
-**Rows 12–14 exist because of the mechanism, not despite it.** All three were found by
+| 15 | — | the **rehearsal checklist** | it listed the right commands | it said "expect 253 passed"; a fresh clone gives **250 passed, 3 skipped**. Written from memory, never executed — the same assumed-artifact-presence error as the demo `report.html` step, one level up. Caught by finally running it |
+
+**Rows 12–15 exist because of the mechanism, not despite it.** All three were found by
 `scripts/revert_check.py` and the coverage sweep that followed it — none by re-reading the
 code. That is the argument for mechanising the rule rather than recommending it: *the
 revert-check found instances of the bug inside the fixes for the bug.*
@@ -612,8 +614,8 @@ means. It is recorded instead as what it is — the same reasoning error in the 
 and it is why every command in the running order is now dry-run before shipping. If asked,
 the answer is: same error, different artefact, kept out of the count on purpose.
 
-**Seven of the fourteen are in code written to catch exactly this** — instances 7, 8, 10,
-11, 12, 13 and 14. That is the most useful thing in the table: the reflex to check a
+**Eight of the fifteen are in code written to catch exactly this** — instances 7, 8, 10,
+11, 12, 13, 14 and 15. That is the most useful thing in the table: the reflex to check a
 negative survives even while writing the guard against it.
 
 Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
@@ -643,8 +645,8 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** Lead with the ratio: **seven of fourteen instances are in code
-written to prevent this bug, and the revert-check found three of them.** The recurring defect was never any one subsystem — it was
+**Say this in the demo.** Lead with the ratio: **eight of fifteen instances are in code
+written to prevent this bug, and mechanical checks found four of them.** The recurring defect was never any one subsystem — it was
 one reasoning error about what a passing check proves, and it is self-camouflaging enough
 to survive inside its own guard. That is why the rule is revert-checking rather than
 vigilance. That is a more useful finding than nine anecdotes, and it is the reason the

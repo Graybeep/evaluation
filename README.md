@@ -205,9 +205,9 @@ its helper while the artifact everyone reads went unchecked. A follow-up sweep o
 tests *that run had just produced* found a third: a tautology test written to replace a
 tautology.
 
-That is why the rule is mechanised rather than recommended. Seven of the fourteen instances
-in CLAUDE.md §7.10 are in code written to prevent that exact bug, and the revert-check found
-three of them.
+That is why the rule is mechanised rather than recommended. Eight of the fifteen instances
+in CLAUDE.md §7.10 are in code written to prevent that exact bug, and mechanical checks
+found four of them — including one in a rehearsal checklist that had never been executed.
 
 ### Throughput, and what "at scale" means here
 
