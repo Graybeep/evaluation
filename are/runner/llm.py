@@ -60,6 +60,8 @@ PROVIDER_RETRIES = min(int(os.environ.get("ARE_PROVIDER_RETRIES", "4")),
                        MAX_PROVIDER_RETRIES)
 RETRY_BACKOFF_S = float(os.environ.get("ARE_RETRY_BACKOFF_S", "2.0"))
 MAX_BACKOFF_S = 16.0
+# Per-minute windows need outwaiting, not jitter.
+RATE_LIMIT_BACKOFF_S = float(os.environ.get("ARE_RATE_LIMIT_BACKOFF_S", "20.0"))
 
 
 class ProviderFault(RuntimeError):
@@ -81,6 +83,39 @@ def _is_provider_fault(exc: Exception) -> bool:
         return True
     status = getattr(exc, "status_code", None)
     return isinstance(status, int) and 500 <= status < 600
+
+
+# Credit exhaustion is fatal and must surface; a per-minute rate limit is transient and
+# backoff clears it. Both arrive as 429, so the two are separated by the error body.
+_FATAL_429 = ("insufficient", "credit", "balance", "top up", "topup", "payment")
+_TRANSIENT_429 = ("rate_limited", "rate limit", "rate-limit",
+                  "per-minute", "per minute", "too many requests")
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    """A 429 that backoff can clear.
+
+    The original policy said "a 429 from this gateway means insufficient credits, which
+    retrying cannot fix" and made every 429 fatal. That was written from an ASSUMPTION
+    about what the gateway means by 429 and never checked against a real response body.
+    The first full online run returned **359 of 360 runs INVALID** on
+    `{'type': 'rate_limited', 'message': 'Per-minute ...'}` — the retryable kind, thrown
+    away because the code believed 429 could only ever mean one thing.
+
+    §7.10 lesson (b): a rule derived from the implementer's model catches only deviations
+    FROM that model, never errors IN it. So the two meanings are now read off the error
+    itself, and credit exhaustion stays fatal exactly as intended.
+    """
+    if getattr(exc, "status_code", None) != 429:
+        return False
+    blob = f"{exc}".lower()
+    if any(w in blob for w in _FATAL_429):
+        return False                       # insufficient credits -> must surface (§AA3)
+    return any(w in blob for w in _TRANSIENT_429)
+
+
+def _is_retryable(exc: Exception) -> bool:
+    return _is_provider_fault(exc) or _is_rate_limited(exc)
 
 
 class LLMUnavailable(RuntimeError):
@@ -211,10 +246,15 @@ class LLMClient:
                 break
             except Exception as exc:
                 last = exc
-                if attempt >= PROVIDER_RETRIES or not _is_provider_fault(exc):
+                if attempt >= PROVIDER_RETRIES or not _is_retryable(exc):
                     raise
                 self.provider_fault_retries += 1
-                _time.sleep(min(RETRY_BACKOFF_S * (2 ** attempt), MAX_BACKOFF_S))
+                # A per-minute limit needs to outwait the window, not merely jitter past
+                # a blip, so it gets its own floor rather than the 5xx backoff curve.
+                delay = min(RETRY_BACKOFF_S * (2 ** attempt), MAX_BACKOFF_S)
+                if _is_rate_limited(exc):
+                    delay = max(delay, RATE_LIMIT_BACKOFF_S * (attempt + 1))
+                _time.sleep(delay)
         if resp is None:                                        # pragma: no cover
             raise last if last else RuntimeError("no response and no exception")
         self.calls += 1

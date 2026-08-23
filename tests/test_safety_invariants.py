@@ -624,3 +624,36 @@ def test_selftest_judge_rows_assert_the_positive_condition():
     # A clean row cannot launder a bad one when they are folded together.
     ok, unverified = selftest_judge_gate([passing, skipped, failing])
     assert ok is False and len(unverified) == 1
+
+
+def test_a_rate_limit_429_is_retried_but_credit_exhaustion_is_not():
+    """The two meanings of 429, separated by the error body rather than assumed.
+
+    The policy said "a 429 from this gateway means insufficient credits, which retrying
+    cannot fix" and made every 429 fatal. It was written from an assumption about the
+    gateway and never checked against a real response. The first full online run then
+    returned 359 of 360 runs INVALID on `{'type': 'rate_limited', 'Per-minute ...'}` —
+    the retryable kind, discarded because the code believed 429 had one meaning.
+
+    Both directions are asserted: a transient limit must retry, and credit exhaustion
+    must still surface (§AA3), including when the body mentions both."""
+    from are.runner.llm import _is_rate_limited, _is_retryable
+
+    class Err(Exception):
+        def __init__(self, msg, code):
+            super().__init__(msg)
+            self.status_code = code
+
+    transient = Err("Error code: 429 - {'error': {'type': 'rate_limited', "
+                    "'message': 'Per-minute request limit reached'}}", 429)
+    assert _is_rate_limited(transient) and _is_retryable(transient)
+
+    for fatal in ("Error code: 429 - insufficient credits",
+                  "Error code: 429 - please top up your balance",
+                  "Error code: 429 - {'type': 'rate_limited'} but balance exhausted"):
+        e = Err(fatal, 429)
+        assert not _is_rate_limited(e), f"credit exhaustion must stay fatal: {fatal}"
+        assert not _is_retryable(e)
+
+    assert _is_retryable(Err("Error code: 502 - bad gateway", 502)), "5xx must still retry"
+    assert not _is_retryable(Err("Error code: 400 - bad request", 400)), "4xx is not a fault"
