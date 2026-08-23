@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.synthetic_keys import synthetic_key
 from are.runner.limits import Budget, LimitTripped
 from are.runner.sandbox import assert_l1_mocked
 from are.schema.scenario import FaultSpec
@@ -130,10 +131,11 @@ def test_scrub_fallback_covers_gateway_keys_not_just_anthropic_ones(monkeypatch)
     """
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)   # fallback only
 
-    gateway = "***REMOVED-KEY-FIXTURE-see-tests-synthetic_keys.py***"
+    gateway = synthetic_key(tag="gateway")
     assert gateway not in scrub(f"key={gateway} trailing")
-    assert "sk-ant-abcdefgh12345678" not in scrub("auth sk-ant-abcdefgh12345678")
-    assert "***REMOVED-KEY-FIXTURE-see-tests-synthetic_keys.py***" not in scrub("k=***REMOVED-KEY-FIXTURE-see-tests-synthetic_keys.py***")
+    for other in (synthetic_key(prefix="sk-ant-", body_len=24, tag="anthropic"),
+                  synthetic_key(prefix="sk-proj-", body_len=31, tag="proj")):
+        assert other not in scrub(f"auth {other} tail")
 
     # and it must not redact ordinary prose that merely starts with "sk"
     for benign in ("the word skydiving", "sk-short", "ask-me-anything"):
@@ -141,9 +143,11 @@ def test_scrub_fallback_covers_gateway_keys_not_just_anthropic_ones(monkeypatch)
 
 
 def test_scrub_redacts_api_keys_before_they_reach_a_trace(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-supersecretvalue123")
-    out = scrub({"note": "auth sk-ant-supersecretvalue123", "list": ["api_key=abcdef1234567890"]})
-    assert "supersecret" not in str(out)
+    secret = synthetic_key(prefix="sk-ant-", body_len=24, tag="env-set")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", secret)
+    generic = "api_key=" + synthetic_key(prefix="", body_len=16, tag="generic")
+    out = scrub({"note": f"auth {secret}", "list": [generic]})
+    assert secret not in str(out)
     assert "abcdef1234567890" not in str(out)
 
 

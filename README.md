@@ -192,7 +192,7 @@ five scorecards are reportable. (Online is a different story: see Limitations 1.
 
 ### How the tests here are validated
 
-**21 of 21 shipped fixes are revert-verified.** That is the number to read, not the test
+**23 of 23 shipped fixes are revert-verified.** That is the number to read, not the test
 total: a passing suite is a *reading*, a revert-checked fix is *evidence*.
 
 ```bash
@@ -205,7 +205,7 @@ its helper while the artifact everyone reads went unchecked. A follow-up sweep o
 tests *that run had just produced* found a third: a tautology test written to replace a
 tautology.
 
-That is why the rule is mechanised rather than recommended. Thirteen of the nineteen instances
+That is why the rule is mechanised rather than recommended. Fourteen of the twenty instances
 in CLAUDE.md §7.10 did not live in the harness at all — they lived in a check written to
 prevent that exact bug. Seven were found by *running* something rather than re-reading it,
 including one in a rehearsal checklist that had never been executed, one in the analysis of

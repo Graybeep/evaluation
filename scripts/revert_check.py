@@ -162,6 +162,24 @@ MUTATIONS = [
      '                  harness_error=("" and f"outer sandbox cap',
      "a run that observed nothing about the agent must not score as its behaviour"),
 
+    # Row 20. The subject is the ALLOWLIST, not the fixtures: re-exempting the test
+    # files restores exactly the condition that let a 94%-complete key sit in a repo.
+    ("T5-scan-allowlist", "row 20: test files are not exempt from the secret scan",
+     "tests/test_no_secrets_in_repo.py",
+     '    "scripts/revert_check.py",                  # mutates the pattern' + LF + '}',
+     '    "scripts/revert_check.py",                  # mutates the pattern' + LF +
+     '    "tests/test_sim_and_guardrails.py",' + LF + '}',
+     "an exempt test file is how a real credential hid from its own scanner"),
+
+    # NOT the hash input: hashing a real key yields an unrelated string, so that would
+    # have been another no-op mutation. The subject is the DETECTOR -- an overlap_run
+    # that always returns 0 satisfies `run <= 7` and certifies a derived fixture clean.
+    ("T5-overlap-teeth", "row 20: overlap_run can detect a lightly-edited key",
+     "tests/synthetic_keys.py",
+     '                best = max(best, j - i)',
+     '                best = max(0, 0)',
+     "a detector that cannot fire makes the no-derivation invariant vacuous"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {

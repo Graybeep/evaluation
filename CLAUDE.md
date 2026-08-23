@@ -563,9 +563,9 @@ infer success from the absence of a failure signal.**
 
 ### The finding is the ratio, not the count
 
-**Thirteen of the nineteen instances below did not live in the harness — they lived in a
-check written to prevent exactly this bug.** That is 68%, and it is the result worth
-stating; "nineteen instances" is only the supporting detail.
+**Fourteen of the twenty instances below did not live in the harness — they lived in a
+check written to prevent exactly this bug.** That is 70%, and it is the result worth
+stating; "twenty instances" is only the supporting detail.
 
 **Where the defect lived** — disjoint, and it sums, because a partition that does not is
 this table's own subject matter:
@@ -573,10 +573,10 @@ this table's own subject matter:
 | layer | n | rows |
 |---|---|---|
 | the harness's own logic | 5 | 1, 2, 9, 17, 19 |
-| **checks and guards written against that logic** | **11** | 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14 |
+| **checks and guards written against that logic** | **12** | 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 20 |
 | process — the demo script, the rehearsal checklist, and the rehearsal itself | 2 | 15, 18 |
 | analysis of the results | 1 | 16 |
-| **total** | **19** | |
+| **total** | **20** | |
 
 So the bug class is **self-camouflaging**: a guard against *measuring the wrong thing*
 fails by measuring the wrong thing. Two re-implemented their subject, one regenerated the
@@ -584,8 +584,8 @@ files it was checking and compared them to themselves, one counted receipts with
 checking any said anything, one asserted a tautology, one was *a tautology written to
 replace a tautology*.
 
-**Eight were found by running something, never by re-reading it** — rows 12, 13, 14, 15,
-16, 17, 18 and 19. That is the argument for mechanising the rule rather than recommending
+**Nine were found by running something, never by re-reading it** — rows 12, 13, 14, 15,
+16, 17, 18, 19 and 20. That is the argument for mechanising the rule rather than recommending
 vigilance. Row 19 is the strongest case: it had survived every prior audit, every test run
 and every rehearsal, because **nothing had ever executed the default code path**.
 
@@ -611,7 +611,7 @@ from somewhere the implementer's model did not — a real sample, an adversarial
 another person.
 
 **Two severity notes, because subtlety and severity are not correlated here.** Row 17 is
-the only one of the nineteen whose consequence was **credential exposure** rather than a
+one of only **two** of the twenty whose consequence was **credential exposure** rather than a
 wrong number — and it is among the least conspicuous. And it surfaced only because
 something else was being investigated (whether the key had leaked into a commit). That is
 the fourth time looking for one thing has produced a finding about another.
@@ -648,6 +648,28 @@ mistake.
 | 18 | — | the **first timed rehearsal** | `exit=1` on the regression beat, which is the expected code | `compare` had **crashed** on a missing run directory. FileNotFoundError also exits 1, so the crash was indistinguishable from the real result. Recorded as a pass and nearly moved past |
 
 | 19 | — | `calibrate` on its **default** (sandboxed) path | `composite 65.0`, `invalid 0.0%`, `reportable True` — every surface said healthy | `looper` recorded **zero tool calls** and none of its declared modes. The child put a ~20KB trace on an `mp.Queue` while the parent sat in `proc.join()` not draining it, so the feeder blocked past the pipe buffer and the child never exited; the outer 120s cap then fired and `_killed()` synthesised a skeleton with `harness_error=None`. A harness deadlock wearing an agent's failure mode. `clean` (~2KB) fit in the buffer and passed, which is why it survived. Caught by running `calibrate` in a fresh clone during T4 |
+
+| 20 | — | the **repo secret scanner**'s `ALLOWED` list | no tracked file contained a credential | the two files that *did* were exempt **by design** — they hold key-shaped fixtures on purpose. One of those fixtures was the live gateway key with **three characters changed**: 47 of 50 bytes identical, a 40-character shared run, on a public repo. The guard was told to look away from the one place a real credential had been copied to. Found by a `git grep` during a routine pre-run safety check |
+
+**Row 20 is lesson (b) in its most literal form, and it is the second credential
+exposure in this table.** Lesson (b) says a test derived from the implementer's model can
+only catch deviations *from* that model. Here the fixture was not derived from a mental
+picture of a key — it was derived from **the key itself**, by editing three characters.
+Row 17 was already about this regex and this key format, and the fix for row 17 left the
+sample it had been built from sitting in the tests.
+
+Note what the allowlist does to the ratio argument: an exemption is not a gap in a guard,
+it is a **hole the guard was asked to cut in itself**. Every entry was individually
+justified and the list was deliberately kept short and auditable — and it still produced
+the worst leak here, because the justification ("this file must contain key-shaped text")
+is exactly the property that makes a file dangerous.
+
+The fix is not to encrypt the fixture. Encryption ships the ciphertext *and* the means to
+read it, so the plaintext stays recoverable from the repo. Fixtures are now **synthesised
+at runtime** from a public seed (`tests/synthetic_keys.py`), so there is no key-shaped
+literal in any tracked file to leak, both test files came **off** the allowlist, and two
+tests assert the invariant: no fixture may share more than the vendor prefix with a real
+key, and no test file may be exempt from the scan again.
 
 **Row 19 displaces row 18 as the most severe, and it is the only one that was live on the
 default path.** Three things make it worse than anything above it:
@@ -694,8 +716,8 @@ means. It is recorded instead as what it is — the same reasoning error in the 
 and it is why every command in the running order is now dry-run before shipping. If asked,
 the answer is: same error, different artefact, kept out of the count on purpose.
 
-**Thirteen of the nineteen are in a check written to catch exactly this** — instances 3, 4,
-5, 6, 7, 8, 10, 11, 12, 13, 14, 15 and 18. That is the most useful thing in the table: the reflex to check a
+**Fourteen of the twenty are in a check written to catch exactly this** — instances 3, 4,
+5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 18 and 20. That is the most useful thing in the table: the reflex to check a
 negative survives even while writing the guard against it.
 
 Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
@@ -727,8 +749,8 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** Lead with the ratio: **thirteen of nineteen instances lived in a check
-written to prevent this bug, and eight were found by running something rather than by
+**Say this in the demo.** Lead with the ratio: **fourteen of twenty instances lived in a check
+written to prevent this bug, and nine were found by running something rather than by
 re-reading it.** The recurring defect was never any one subsystem — it was
 one reasoning error about what a passing check proves, and it is self-camouflaging enough
 to survive inside its own guard. That is why the rule is revert-checking rather than
