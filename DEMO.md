@@ -223,26 +223,43 @@ Yes, and the execution path is validated: live multi-turn tool calls, kill switc
 provider faults correctly classified INVALID rather than blamed on agents, retries counted
 and surfaced. The plumbing demonstrably works.
 
-And no, not yet in a way that produces a quotable number — but be precise about why,
-because the obvious answer is the wrong one.
+No — it was attempted on 2026-08-23 and the endpoint stopped it. Say that plainly; the
+failure is more interesting than a shrug.
 
-**It is not a cost problem, and not an endpoint problem.** Routing to a cheap third-party
-model is a deliberate decision, and the gateway support is a built capability: allowlist
-widening, provenance-carrying labels, provider-fault classification, counted retries. On
-2026-08-23 that same gateway served a judge-enabled run at **0.0% invalid, reportable**.
+**Two runs, both unreportable, both for endpoint reasons.** Preflight: 25% invalid on
+`502`s from the gateway CDN. Full run: **100% invalid on `429 rate_limited`**, a per-minute
+cap. Against §6.1's 5% ceiling neither is reportable, and **no composite from either
+appears anywhere in the repo** — the reporting rules were fixed in advance in
+`reports/ONLINE_SUITE_RUN_COMMITMENT.md`.
 
-**What is missing is simply the run.** No full 60-scenario online pass has been attempted,
-so every headline number here is offline scripted-policy behaviour. That is a coverage gap,
-and on current evidence a closable one.
+**What the failure demonstrated is the part worth saying.** The harness classified every
+one of those failures correctly: provider faults recorded as **INVALID**, never charged to
+the agent, and `calibrate` exited **2** (harness/endpoint) rather than **1** (agent
+regressed). The three-way outcome and the CI exit codes did their job under real adverse
+conditions instead of in a unit test. A tool that reported 100% agent failure there would
+have been lying, and this one said "not reportable, and not the agent's fault".
 
-The one caveat that survives: a router decides what actually serves a request, so model
-identity rests on its own echo. That matters only for a claim attributed to a *named model*
-— which this project does not make. Artefacts say `provenance unverified` so anyone who
-needs that distinction can see it.
+**And the run found a live defect.** The retry policy read *"a 429 from this gateway means
+insufficient credits, which retrying cannot fix"* — an assumption never checked against a
+real response body. The real error was `type: rate_limited`, the retryable kind, and that
+one assumption discarded **359 of 360 runs**. Fixed, with credit exhaustion still fatal and
+both branches asserted. Same reasoning error as §7.10 rows 17 and 20: a rule written from a
+picture of the input rather than the input.
 
-Say it as: **"the path works, and the full online run is the next thing, not a blocker."**
-That is a precise engineering status and it is stronger than either "we ran it online" or
-"we never tried".
+**What is unaffected, and worth showing instead:** the MCP transport. There ARE is the
+*server* — the external agent brings its own model and key, and `runner/mcp_server.py`
+makes no LLM calls at all. Demonstrated end-to-end with `ANTHROPIC_API_KEY` unset:
+`initialize`, `tools/list` (12 tools), `tools/call`, `submit_answer`, and a real
+`MISSING_CLARIFICATION` verdict. **Pointing an agent at this harness never depended on the
+router.**
+
+The caveat that survives regardless: a router decides what actually serves a request, so
+model identity rests on its own echo. That matters only for a claim attributed to a *named
+model* — which this project does not make. Artefacts say `provenance unverified`.
+
+Say it as: **"we ran it, the endpoint rate-limited us, and the harness correctly refused to
+turn that into an agent result."** That is a precise engineering status, and it is stronger
+than either "we ran it online" or "we never tried".
 
 **"Can this block a merge?"**
 No, by design. Nothing in `score/` returns a gate decision. A hard automated gate on an

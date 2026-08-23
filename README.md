@@ -645,42 +645,66 @@ plus the checks in this repo pin the figures each item quotes.
    agent), bounded counted retries (27 recoveries across 13 of 32 runs, surfaced rather than
    laundered), and provenance-carrying model labels. The plumbing works.
 
-1b. **No full-suite online run has been done. That is a gap, not a verdict on the
-   endpoint.** Earlier drafts of this section were wrong in two ways and both are corrected
-   here.
+1b. **The full-suite online run was attempted on 2026-08-23 and did not produce a
+   reportable result. The endpoint is the reason.** This section has been wrong twice in
+   opposite directions; what follows is what was measured, not what was expected.
 
-   *Using a third-party router is a cost decision, not a limitation.* Routing through
-   `router.bynara.id` to a cheap model is a sound engineering choice for a project whose
-   headline result is "the harness recovers a known ranking". Gateway support is a **built
-   capability** — allowlist widening, provenance-carrying labels, provider-fault
-   classification, counted retries — and calling it a deficiency confused a design decision
-   with a defect.
+   *Using a third-party router is a cost decision, not a limitation.* Routing to a cheap
+   model is sound for a project whose headline result is "the harness recovers a known
+   ranking", and gateway support is a **built capability** — allowlist widening,
+   provenance-carrying labels, provider-fault classification, counted retries. That part
+   stands.
 
-   *The "unstable infrastructure" claim was stale — but read the evidence carefully.* It
-   rested on runs of 2026-08-20 at 28% and 12.5% invalid. Two later runs refute "could not
-   sustain a reportable run", so that sentence is gone. Neither is strong evidence that a
-   **full online agent pass** will hold, and the difference is worth stating because
-   conflating them is exactly the §7.10 error:
+   *But the "unstable infrastructure" claim was NOT stale, and calling it stale was my
+   error.* An earlier draft cited a judge-enabled run at `invalid_rate 0.0` as a refutation.
+   That run had `offline=True` — **the agent was the scripted policy and only the judge went
+   over the wire.** Citing the judge path as evidence about the agent path is the §7.10
+   error, committed inside a paragraph correcting a §7.10 error. Here is every online
+   agent-path measurement, in order:
 
-   | run | date | what actually went over the wire | n | invalid |
+   | run | date | scope | invalid | cause |
    |---|---|---|---|---|
-   | `online-first` | 08-20 | **the agent loop** (`clean@v1`, multi-turn tool calls) | 1 scenario | 0.0 |
-   | `judge-live` | 08-23 | **the judge only** — `offline=True`, the agent was the scripted policy | 8 scenarios | 0.0 |
+   | `online-first` | 08-20 | 1 scenario | 0.0% | — |
+   | early attempts | 08-20 | partial | 28%, 12.5% | provider faults |
+   | preflight | 08-23 | 2 scen × 4 agents | **25%** | `502` from the gateway CDN |
+   | full run | 08-23 | 60 scen × 4 agents | **100%** | `429 rate_limited` (per-minute cap) |
 
-   So the larger sample exercises the *judge* path (one call per run), and the only
-   *agent*-path online evidence is a single scenario. A 60-scenario × N=3 × 4-agent pass is
-   roughly **720 agent runs and several thousand calls** — three orders of magnitude beyond
-   what has been demonstrated. "Closable" is a forecast here, not a measurement.
+   Against a 5% ceiling (§6.1), none of these is reportable. **No composite from any of
+   them appears anywhere in this repo**, per the pre-registered commitment in
+   `reports/ONLINE_SUITE_RUN_COMMITMENT.md`.
 
-   **What is actually still true:** no full 60-scenario online run has been attempted, so
-   every headline number here is offline scripted-policy behaviour. That is a gap in
-   coverage, and on current evidence a closable one.
+   **What the failed runs did establish, which is not nothing:**
+
+   * The harness classified every failure correctly. 5xx and 429 were recorded as
+     **provider faults → INVALID**, never as agent failures, and `calibrate` exited **2**
+     (harness/endpoint) rather than **1** (agent regressed). §6.1's three-way outcome and
+     §7.6's exit codes did exactly the job they exist for, under real adverse conditions
+     rather than in a test.
+   * They found a **live defect in the retry policy**. It read *"a 429 from this gateway
+     means insufficient credits, which retrying cannot fix"* — an assumption never checked
+     against a real response body. The actual error was `type: rate_limited`, the retryable
+     kind, and that assumption discarded **359 of 360 runs**. Fixed; credit exhaustion
+     stays fatal, and both branches are asserted.
+
+   **So the honest status is narrower than either previous draft.** It is not "the
+   infrastructure cannot sustain a run" — that is a claim about capacity nobody has
+   measured at a sustainable request rate. It is not "closable, on current evidence"
+   either. It is: **at the concurrency this suite needs, this gateway rate-limits before a
+   60-scenario pass completes, and no online agent result exists.** Every headline number
+   in this repo is offline scripted-policy behaviour, on the sandboxed path, which is
+   stated wherever those numbers appear.
+
+   **What is unaffected:** the MCP transport (§4.3). There, ARE is the *server* and the
+   external agent brings its own model and key — `runner/mcp_server.py` makes no LLM calls
+   at all. Verified end-to-end on 2026-08-23 with `ANTHROPIC_API_KEY` unset: `initialize`,
+   `tools/list` (12 tools), `tools/call`, `submit_answer`, and a real
+   `MISSING_CLARIFICATION` verdict. **Pointing an agent at this harness never depended on
+   the router.**
 
    **And one caveat that is not about cost:** a router decides what actually serves a
-   request, so model identity rests on its own echo. That matters only if you want a
-   number attributed to a *named model* — which this project never claims. Artefacts are
-   labelled `qwen-3.8-max-free (via router.bynara.id, provenance unverified)` so the
-   distinction is visible to anyone who does need it.
+   request, so model identity rests on its own echo. That matters only for a number
+   attributed to a *named model* — which this project never claims. Artefacts are labelled
+   `qwen-3.8-max-free (via router.bynara.id, provenance unverified)`.
 
 1c. **The LLM judge has now run — and is still uncalibrated.** Both halves matter.
 
