@@ -1,5 +1,21 @@
 # Agent Reliability Engine — runtime dependencies (deliberately few).
-pydantic>=2.7          # schemas: scenario, trace, verdict
-PyYAML>=6.0            # tool registry, templates, pressure corpus
-anthropic>=0.40        # the ONLY network client in the repo (§7.1)
-pytest>=8.0            # test suite
+#
+# PINNED, not floated. §4.5 pins the model string because "a provider-side model update
+# shows up in your regression tracker as an agent regression, and you will chase it for
+# hours". A floating dependency is the same bug with a different supplier: `pydantic>=2.7`
+# lets a fresh clone resolve a version the frozen numbers were never measured against,
+# and the resulting diff is attributed to the agent.
+#
+# These are the versions every number in the README and DEMO.md was measured on
+# (2026-08-23). Bump deliberately, re-run the suite and the calibration acceptance
+# criterion, then update this file — never the other way round.
+#
+# Supply chain: there is no lockfile of transitive pins here, so this is pinning, not
+# full reproducibility, and it is not a vulnerability scan. `pip-audit` is NOT installed
+# in this environment, so the dependency set is currently UNSCANNED — which is a
+# different state from "scanned, no findings" (§7.10) and is reported as such.
+#     python -m pip install pip-audit && python -m pip_audit -r requirements.txt
+pydantic==2.13.4         # schemas: scenario, trace, verdict
+PyYAML==6.0.3            # tool registry, templates, pressure corpus
+anthropic==0.124.0       # the ONLY network client in the repo (§7.1)
+pytest==9.1.1            # test suite

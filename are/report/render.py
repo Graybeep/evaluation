@@ -392,6 +392,13 @@ def render_report(run_dir: Path, compare_dir: Path | None = None,
 
     doc = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Second layer behind _esc(). This report renders text that came from our own
+     injection corpus (§7.2) by way of tool output the agent was fed, so escaping is
+     the control and this is the backstop for a hole in it. The report is script-free
+     and loads nothing remote, so denying both costs nothing and makes a future
+     script element an obvious, immediate failure rather than a silent capability. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <title>ARE report — {_esc(sc.agent_version)}</title><style>{CSS}</style></head><body>
 {_mode_bar(meta)}
 <h1>Agent Reliability Engine — scorecard</h1>
