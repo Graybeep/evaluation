@@ -8,8 +8,10 @@ reading, not a result.
 Restoration is unconditional (try/finally per mutation, plus a final sweep), and
 the script verifies the tree is green again before it writes its report.
 """
+import atexit
 import json
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -180,6 +182,17 @@ MUTATIONS = [
      '                best = max(0, 0)',
      "a detector that cannot fire makes the no-derivation invariant vacuous"),
 
+    ("T6-rate-limit-429", "429 rate_limited is retryable; credit exhaustion is not",
+     "are/runner/llm.py",
+     '    if any(w in blob for w in _FATAL_429):' + LF + '        return False',
+     '    if True:' + LF + '        return False',
+     "treating every 429 as fatal is what discarded 359 of 360 online runs"),
+
+    ("T6-calibrate-judge-flag", "calibrate exposes --judge", "are/cli.py",
+     '    cal.add_argument("--judge", action="store_true",',
+     '    cal.add_argument("--judge-DISABLED", action="store_true",',
+     "a judge reachable only from `run` cannot be exercised across the suite"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {
@@ -190,6 +203,64 @@ MUTATIONS = [
      '',
      "a zero-applicability category must not render PASS"),
 ]
+
+
+# --------------------------------------------------------------- crash safety
+# try/finally does NOT survive SIGINT/SIGTERM or a task-runner kill. A sweep killed
+# mid-mutation on 2026-08-23 left FOUR files reverted in the working tree; the suite
+# then read "5 failed" and looked like a regression. A tool that corrupts the tree it
+# is auditing, and leaves the damage looking like a genuine failure, is the §7.10 bug
+# in the instrument built to catch it.
+_DIRTY: dict[str, Path] = {}          # rel -> backup path, populated while mutated
+
+
+def _restore_all(*_a):
+    for rel, bak in list(_DIRTY.items()):
+        try:
+            shutil.copy2(bak, ROOT / rel)
+            _DIRTY.pop(rel, None)
+        except OSError:
+            print(f"  !! COULD NOT RESTORE {rel} -- run: git checkout -- {rel}")
+    if _a:                             # arrived via a signal
+        print(f"{LF}interrupted: working tree restored. No mutation left behind.")
+        raise SystemExit(130)
+
+
+atexit.register(_restore_all)
+for _sig in (signal.SIGINT, signal.SIGTERM):
+    try:
+        signal.signal(_sig, _restore_all)
+    except (ValueError, OSError):      # not on the main thread / unsupported
+        pass
+
+# WHAT THE HANDLERS ABOVE DO NOT COVER, stated because a half-covered guard that reads
+# as full coverage is this script's own subject. On Windows a task runner kills with
+# TerminateProcess: no signal is delivered, atexit never runs, and NOTHING in-process
+# can restore the tree. That is exactly how the 2026-08-23 sweep left four files
+# mutated. Handlers cover Ctrl+C in a console; they do not cover an external kill.
+#
+# So the load-bearing guards are the two that work regardless of how death arrives:
+#   * assert_tree_clean() refuses to START over someone else's (or a corpse's) edits;
+#   * `--restore` recovers explicitly, without guessing.
+
+
+def assert_tree_clean() -> None:
+    """Refuse to start on a dirty tree.
+
+    Two reasons. A previous crashed sweep may have left mutations, and running over
+    them would mutate a mutation and report nonsense. And on exit this script cannot
+    tell its own edits from the author's, so it would either clobber real work or
+    leave its own behind."""
+    r = subprocess.run(["git", "status", "--porcelain"], cwd=str(ROOT),
+                       capture_output=True, text=True)
+    dirty = [l for l in r.stdout.splitlines() if l.strip() and not l.startswith("??")]
+    if dirty:
+        print("REFUSING: working tree has uncommitted changes.")
+        for l in dirty[:10]:
+            print("   ", l)
+        print("Commit or stash first. If a previous sweep was killed, these may be ITS")
+        print("mutations -- check `git diff` before assuming they are yours.")
+        raise SystemExit(2)
 
 
 def read(rel):
@@ -211,7 +282,37 @@ def suite_red() -> tuple[bool, str]:
     return r.returncode != 0, (tail[0][:110] if tail else "no output")
 
 
+def restore_from_crash() -> int:
+    """Recover after a sweep died without restoring (see the note above).
+
+    Uses git rather than the backup dir: backups are only written for files this run
+    touched, and after a hard kill there is no reliable record of which those were.
+    Restricted to the files listed in MUTATIONS, so a stray `--restore` cannot discard
+    unrelated work."""
+    files = sorted({m[2] for m in MUTATIONS})
+    r = subprocess.run(["git", "status", "--porcelain", "--"] + files,
+                       cwd=str(ROOT), capture_output=True, text=True)
+    dirty = [l[3:].strip() for l in r.stdout.splitlines()
+             if l.strip() and not l.startswith("??")]
+    if not dirty:
+        print("nothing to restore: no mutation-target file is modified.")
+        return 0
+    print("restoring mutation targets left modified by a previous run:")
+    for f in dirty:
+        print("   ", f)
+    subprocess.run(["git", "checkout", "--"] + dirty, cwd=str(ROOT), check=True)
+    left = subprocess.run(["git", "status", "--porcelain", "--"] + files,
+                          cwd=str(ROOT), capture_output=True, text=True).stdout.strip()
+    if left:
+        print("STILL DIRTY after restore -- investigate:"); print(left); return 1
+    print("restored; tree clean for these files.")
+    return 0
+
+
 def main() -> int:
+    if "--restore" in sys.argv:
+        return restore_from_crash()
+    assert_tree_clean()
     BAK.mkdir(parents=True, exist_ok=True)
     files = sorted({m[2] for m in MUTATIONS})
     for f in files:
@@ -230,6 +331,7 @@ def main() -> int:
                 results.append(entry)
                 print(f"  {mid:<26} PATTERN NOT FOUND")
                 continue
+            _DIRTY[rel] = BAK / rel.replace("/", "__")      # armed for crash restore
             write(rel, s.replace(old, new, 1), crlf)
             entry["reverted"] = True
             red, summary = suite_red()
@@ -238,6 +340,7 @@ def main() -> int:
             print(f"  {mid:<26} {'RED  ' if red else 'GREEN'}  {summary}")
         finally:
             shutil.copy2(BAK / rel.replace("/", "__"), ROOT / rel)
+            _DIRTY.pop(rel, None)
             entry["restored"] = True
         results.append(entry)
 
