@@ -105,6 +105,25 @@ def _is_rate_limited(exc: Exception) -> bool:
     §7.10 lesson (b): a rule derived from the implementer's model catches only deviations
     FROM that model, never errors IN it. So the two meanings are now read off the error
     itself, and credit exhaustion stays fatal exactly as intended.
+
+    ## VALIDATION STATUS: unit-tested and revert-verified, NOT validated against a live 429
+
+    Stated here because the gap that produced this bug was believing an untested claim
+    about the endpoint, and a fix nobody has watched work is the same kind of claim.
+
+    What exists: five unit cases covering both branches (including a body naming *both*
+    rate-limiting and credit exhaustion, where a naive substring check picks wrong), and
+    mutation `T6-rate-limit-429`, which drives the suite red when the fatal/transient
+    split is removed.
+
+    What does NOT exist: a recorded live run in which a 429 was raised, retried, and
+    recovered. Two attempts on 2026-08-23 failed to produce one — a suite run timed out
+    before persisting, and a direct probe made 8 successful calls without ever tripping
+    the limit. **No 429 was observed, so nothing about this path was exercised**; absence
+    of a rate limit is not evidence that the rate-limit branch works.
+
+    To close it, capture a run whose scorecard shows `provider_fault_retries > 0` with
+    `invalid_rate` at 0 — retries that *recovered*, rather than retries that ran out.
     """
     if getattr(exc, "status_code", None) != 429:
         return False
