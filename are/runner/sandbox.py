@@ -33,7 +33,7 @@ import time
 from queue import Empty as _QueueEmpty
 from pathlib import Path
 
-from are.runner.limits import SANDBOX_CAPS
+from are.runner.limits import LIMITS, SANDBOX_CAPS
 from are.schema.scenario import Scenario
 from are.schema.trace import RunResult, Step
 
@@ -142,7 +142,18 @@ def run_sandboxed(scenario: Scenario, agent: str, repeat_idx: int = 0,
                   guard_network: bool = True, timeout_s: float | None = None,
                   limit_overrides: dict | None = None) -> RunResult:
     """Run one scenario in a child process. Falls back in-process if spawn is unavailable."""
-    timeout = timeout_s or float(SANDBOX_CAPS["wall_clock_s"])
+    # The outer cap is a BACKSTOP for inner-enforcement failure, not a second budget:
+    # `limits.py` says "if the inner limit is doing its job the outer one never fires, so
+    # an outer trip means the inner enforcement itself failed", and `_killed()` therefore
+    # routes an outer trip to INVALID as a harness finding.
+    #
+    # A fixed 120s outer breaks that the moment the inner limit is raised — `--wall-clock`
+    # overrides the inner one only, so an online run with `--wall-clock 240` would have the
+    # OUTER cap firing first on every slow-but-legal run, and each would be recorded as a
+    # harness fault rather than the agent's behaviour. The backstop must stay above the
+    # thing it backs up, so it is derived rather than hardcoded.
+    inner = float((limit_overrides or {}).get("wall_clock_s", LIMITS["wall_clock_s"]))
+    timeout = timeout_s or max(float(SANDBOX_CAPS["wall_clock_s"]), inner * 1.5 + 30.0)
     try:
         ctx = mp.get_context("spawn")
         queue = ctx.Queue()

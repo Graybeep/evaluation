@@ -95,3 +95,27 @@ def test_an_outer_cap_kill_is_a_harness_finding_not_an_agent_one(loop_scenario):
         f"outer-cap kill scored {v.outcome}; a run that observed nothing about the "
         f"agent cannot be one of its failures (§13.5)")
     assert r.steps[0].meta.get("observed_agent_behaviour") is False
+
+
+def test_the_outer_cap_stays_above_the_inner_limit(loop_scenario):
+    """The outer cap backs up the inner switches; it must not overtake them.
+
+    `--wall-clock` overrides the INNER limit only. With the outer cap hardcoded at
+    120s, an online run at `--wall-clock 240` would have the outer firing first on
+    every slow-but-legal run — and since row 19 an outer trip is INVALID, each would
+    be charged to the harness instead of the agent. A backstop that fires before the
+    thing it backs up is not a backstop."""
+    import inspect
+
+    from are.runner.limits import LIMITS
+    from are.runner.sandbox import run_sandboxed
+
+    src = inspect.getsource(run_sandboxed)
+    assert "SANDBOX_CAPS[\"wall_clock_s\"])" in src and "inner * 1.5" in src, (
+        "the outer cap is no longer derived from the inner limit")
+
+    for inner in (LIMITS["wall_clock_s"], 240.0, 600.0):
+        outer = max(120.0, inner * 1.5 + 30.0)
+        assert outer > inner * 1.4, (
+            f"inner {inner}s vs outer {outer}s leaves too little margin; the outer "
+            f"cap would fire on runs the inner switch should have owned")
