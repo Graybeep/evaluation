@@ -1333,6 +1333,11 @@ def build_parser() -> argparse.ArgumentParser:
     cal = sub.add_parser("calibrate", help="check the §5 acceptance criterion")
     cal.add_argument("--scenarios", default=str(FROZEN_PATH))
     cal.add_argument("--agents", nargs="*", default=None)
+    # `execute_suite` has always honoured args.judge; only the flag was missing here,
+    # so the judge could be exercised on `run` but never across the calibration suite.
+    cal.add_argument("--judge", action="store_true",
+                     help="enable the secondary LLM judge (§6.3); findings stay labelled "
+                          "'LLM-judged, unvalidated' and abstention routes to INVALID")
     cal.add_argument("--out", default="runs")
     runner_flags(cal)
     cal.set_defaults(func=cmd_calibrate)

@@ -171,3 +171,22 @@ def test_judge_version_reflects_actual_client_state(monkeypatch):
     # it tracks configuration, rather than being hardcoded
     monkeypatch.setitem(MODELS, "judge", "another-model")
     assert judge_version().endswith("+another-model")
+
+
+def test_calibrate_exposes_the_judge_flag_that_execute_suite_already_honours():
+    """`execute_suite` has always read `args.judge`, but only `run` registered the
+    flag — so the judge could be exercised on a single agent and never across the
+    calibration suite, which is the only place it would meet 60 scenarios x 4 agents.
+
+    A capability that exists in the plumbing and cannot be reached from the CLI is
+    indistinguishable, from the outside, from one that was never built."""
+    import inspect
+
+    from are.cli import build_parser, execute_suite
+
+    assert 'getattr(args, "judge", False)' in inspect.getsource(execute_suite)
+
+    args = build_parser().parse_args(["calibrate", "--judge"])
+    assert args.judge is True
+    assert build_parser().parse_args(["calibrate"]).judge is False, (
+        "the judge must stay opt-in and off by default (§6.3)")
