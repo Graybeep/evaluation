@@ -95,7 +95,7 @@ It is just not a claim about models, and the slide must not imply that it is.
 Right after the fingerprint table. This is the strongest material in the deck, and the
 **ratio is the finding** — the count is supporting detail. Lead with this sentence:
 
-> **Thirteen of the eighteen times this harness measured the wrong thing, the defect was
+> **Thirteen of the nineteen times this harness measured the wrong thing, the defect was
 > not in the harness — it was in a check written to prevent exactly that.**
 
 That is 72%. Seven were found by *running* something, never by re-reading.
@@ -117,19 +117,19 @@ and "we were careful" is not evidence. The only rule that survives is **revert-c
 revert the fix, confirm the suite goes red, restore.
 
 **And that is now an empirical result, not a preference.** `scripts/revert_check.py` does
-it mechanically. It found **seven of the eighteen** — one inside a fix it had itself just prompted, one in a
+it mechanically. It found **seven of the nineteen** — one inside a fix it had itself just prompted, one in a
 rehearsal checklist that had never been run, and one in the analysis of the judge result
 that proves the tool works. The mechanism caught instances that re-reading the code never did.
 
 **The strongest version, and the one to actually say:** this is not a story about one
-codebase being sloppy. The same mechanism shows up at **three layers** — in the harness's own logic
-(4), in the checks written against it (11), in the demo process (2), and in the analysis of
-the results (1) — eighteen in total, and the buckets are disjoint. Where
+codebase being sloppy. The same mechanism shows up at **four layers** — in the harness's own logic
+(5), in the checks written against it (11), in the demo process (2), and in the analysis of
+the results (1) — nineteen in total, and the buckets are disjoint. Where
 asking *"is it really done?"* found a real gap three times. Every occurrence has the same
 shape: **verification drifts toward the implementation and away from the requirement.**
 Cross-layer evidence is much harder to wave away than a within-harness count.
 
-> **The number to say out loud: 21 of 21 revert-verified.** Not "276 tests pass". 276
+> **The number to say out loud: 21 of 21 revert-verified.** Not "285 tests pass". 285
 > passing tests is a *reading*; a revert-checked subset is *evidence*. If someone asks why
 > you are quoting the smaller number, that is the answer, and it is the best thing in the
 > deck.
@@ -285,15 +285,23 @@ python -m are.cli compare runs/p3-v1 runs/p3-v1b --ci  # -> exit 0  (A/A null)
 bash demo.sh                            # -> exit 0 in 50s
 ```
 
-> **The 3 skips are real and you should know why before someone asks.** A fresh clone has
+> **A fresh clone gives `282 passed, 3 skipped`. The skips are real and you should know
+> why before someone asks.** A fresh clone has
 > no run artifacts — `runs/` is gitignored — so three tests that read committed artifacts
 > skip loudly. They are *not* the CI or regression claims; those build what they need.
-> After `calibrate` + `analyse` the count is **258 passed, 1 skipped**, and after
-> `gen-targeted` it is **259 passed, 0 skipped**. All three counts were measured.
+> After `calibrate` + `analyse` the count is **284 passed, 1 skipped**, and after
+> `gen-targeted` it is **285 passed, 0 skipped**. All three counts were measured on
+> 2026-08-23 in a fresh clone of `main`.
 >
 > An earlier version of this checklist said "expect 253 passed". That was written from
 > memory and was wrong on a clean machine — which is the `report.html` bug one level up,
 > and is exactly why this block now records executed output instead of expectations.
+>
+> **Re-running this is not ceremony.** The 2026-08-23 pass of exactly this sequence is
+> what surfaced §7.10 row 19: `calibrate` on its *default* path returned
+> `ACCEPTANCE: FAIL` with `looper`'s defect invisible, while every reported field said
+> the run was healthy. `demo.sh` passes `--no-sandbox`, so nothing else in this
+> checklist could have found it.
 
 **Three things that will bite if you skip this:**
 

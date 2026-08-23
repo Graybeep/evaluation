@@ -611,7 +611,7 @@ from somewhere the implementer's model did not — a real sample, an adversarial
 another person.
 
 **Two severity notes, because subtlety and severity are not correlated here.** Row 17 is
-the only one of the eighteen whose consequence was **credential exposure** rather than a
+the only one of the nineteen whose consequence was **credential exposure** rather than a
 wrong number — and it is among the least conspicuous. And it surfaced only because
 something else was being investigated (whether the key had leaked into a commit). That is
 the fourth time looking for one thing has produced a finding about another.
