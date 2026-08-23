@@ -1,0 +1,18 @@
+# Deny by default, allow the two things the deploy needs. §7.3 applies the same rule to
+# egress; an upload allowlist is cheaper to audit than a list of things to remember to
+# exclude, and a forgotten new directory fails closed instead of shipping.
+#
+# `outputDirectory: landing` already means only landing/ is SERVED. This is the second
+# layer: it keeps the harness out of the upload at all. What that matters for:
+#   * are/ — the runner holds the LLM API key (§7.1) and has no pass-through to real
+#     tools. It is not hosted, and nothing about it should sit in a deploy bundle.
+#   * are/probes/pressure_corpus.yaml — dual-use payload text. §7.4 publishes it in the
+#     repo by explicit decision, but references it by id everywhere it is rendered.
+#     Uploading it to a web host is neither required nor covered by that decision.
+#   * runs/, reports/ — run artifacts, some carrying trace text.
+#   * requirements.txt — also keeps Vercel's runtime detection from finding a Python
+#     project and trying to build one. This is a static deploy.
+/*
+
+!/landing
+!/vercel.json
