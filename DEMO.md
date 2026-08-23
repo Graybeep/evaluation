@@ -39,7 +39,7 @@ this order:
 
 | # | number | what it settles |
 |---|---|---|
-| 1 | **14 of 20** instances of our worst bug were inside the guard against it, not the harness — so every shipped fix is revert-checked: **25 of 25** verified, 0 stayed green | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
+| 1 | **14 of 20** instances of our worst bug were inside the guard against it, not the harness — so every shipped fix is revert-checked (count PENDING a clean sweep; see note) | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
 | 2 | **zero** false positives on `clean` — at most **6.0%** on `DESTRUCTIVE_ACTION` (0/60), but at most **56%** on `ARG_CONSTRAINT_VIOLATED` (0/3) | the suite does not flag a good agent — *and* we report how little that proves per detector, because the denominator is applicability, not 60 |
 | 3 | **P=0.29** on our own refusal heuristic, with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -51,7 +51,7 @@ have made it look twenty times safer. That single row is the whole method in min
 Number 1 is what buys the credibility for 2 and 3.
 
 ---|---|
-| **14 of 20** instances of our worst bug were inside the guard against it — and every fix is revert-checked: **25 of 25**, 0 stayed green | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
+| **14 of 20** instances of our worst bug were inside the guard against it — and every fix is revert-checked (count PENDING a clean sweep) | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
 | **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
 | **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -134,15 +134,20 @@ asking *"is it really done?"* found a real gap three times. Every occurrence has
 shape: **verification drifts toward the implementation and away from the requirement.**
 Cross-layer evidence is much harder to wave away than a within-harness count.
 
-> **The number to say out loud: 25 of 25 revert-verified, 0 stayed green.** Not "290 tests
-> pass". A passing suite is a *reading*; a revert-checked fix is *evidence*. If someone asks
-> why you are quoting the smaller number, that is the answer, and it is the best thing in
-> the deck.
+> **Say the revert-verified count out loud — but only once a clean sweep has produced
+> it.** Not "290 tests pass". A passing suite is a *reading*; a revert-checked fix is
+> *evidence*. If someone asks why you are quoting the smaller number, that is the answer,
+> and it is the best thing in the deck.
 >
-> Re-derive it from `reports/revert_verified.json` on the morning of the demo. It was `23 of
-> 23` here while the script held 25 mutations and the report recorded 21 — a completeness
-> claim no run supported, in the deck whose whole point is that a count must come from a
-> run.
+> **As of 2026-08-23 14:40 that count is PENDING**: two sweeps overlapped, and the surviving
+> `revert_verified.json` reports `tree_restored_and_green: False`. Run one locked sweep on a
+> clean tree on the morning of the demo and read the number off the artifact.
+>
+> This slide has now carried three wrong values for one quantity — `23 of 23` while the
+> script held 25 mutations and the report recorded 21, then `25 of 25` from a raced run.
+> Each was written by reading *a* number rather than checking what produced it. That is the
+> slide's own subject, which is why the failure is left on the slide instead of tidied
+> away.
 
 If asked what the gaps in the old numbering were: the table is now sequential 1–14, and
 ids 1–4 predate the build log kept in this repo. They are marked **not recoverable** rather
@@ -160,7 +165,7 @@ than back-filled, because inventing them would be its own instance.
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
 | 4 | Regression **and** null | **first** `bash scripts/demo_runs.sh` (builds the three runs), then `are compare runs/p3-v2 runs/p3-v1 --ci` and `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible. `runs/` is gitignored, so a fresh clone has nothing to compare until you build it |
 | 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; **two detectors that never fire on the frozen set — a gap in the SUITE, not the detectors; both have revert-verified positive controls outside it**; top-3 templates are 50% of the suite |
-| 6 | **Fourteen of twenty were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 25 of 25 revert-verified, 0 stayed green — quote that, not the test total |
+| 6 | **Fourteen of twenty were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces. Quote the revert-verified count, not the test total — **and only if the artifact also says `tree_restored_and_green: true`** |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 
 Steps 6 and 7 are the ones people remember. Step 0 decides whether they believe 2–5 at all.
@@ -301,7 +306,8 @@ pip install -r requirements.txt
 
 python -m pytest -q            # -> RE-MEASURE, see note (was 282 passed + 3 skipped
                                #    when the suite held 285; it now holds 290)
-python scripts/revert_check.py # -> 25/25 revert-verified, tree GREEN
+python scripts/revert_check.py # -> RE-MEASURE: needs one locked sweep on a clean
+                               #    tree; last artifact ended tree_restored_and_green=False
 python -m are.cli selftest              # -> exit 0 (3 judge probes SKIPPED)
 python -m are.cli selftest --strict     # -> exit 1, BY DESIGN
 python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox

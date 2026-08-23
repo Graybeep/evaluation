@@ -733,9 +733,16 @@ shipped fixes and writes `reports/revert_verified.json`.
 
 **Two numbers live next to each other here and they are not the same number.** **20** is
 the count of *instances of the bug class* in the table above. **25** is the count of
-*mutations* in `scripts/revert_check.py`, all 25 revert-verified by the sweep of
-2026-08-23 14:24 (`reports/revert_verified.json`: `n_revert_verified: 25`,
-`n_stayed_green: 0`).
+*mutations* in `scripts/revert_check.py`. How many are **revert-verified** is, as of
+2026-08-23 14:40, **PENDING** — not 25, and not a number to quote yet.
+
+Two sweeps overlapped. They shared `.revert_backup/` and both wrote
+`revert_verified.json`: the 14:24 run reported `25/25` with a green tree, the 14:40 run
+overwrote it with `n_revert_verified: 25` but `tree_restored_and_green: False` and
+`7 failed, 283 passed`. Per-mutation reds recorded while a *second* sweep was restoring
+the same files are not evidence — a mutation can be undone by the other run mid-flight
+and register either way. The lock added in `948caab` prevents the recurrence; it does not
+retroactively validate the number. **A clean locked sweep is what closes this.**
 
 Read both off the artifacts, never from memory. On 2026-08-23 this file said **19**, the
 README said **23 of 23**, SPEC said **19/19** and the report recorded **21** — four values

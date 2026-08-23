@@ -192,9 +192,11 @@ five scorecards are reportable. (Online is a different story: see Limitations 1.
 
 ### How the tests here are validated
 
-**25 of 25 shipped fixes are revert-verified** (sweep of 2026-08-23 14:24; `n_stayed_green:
-0`). That is the number to read, not the test total: a passing suite is a *reading*, a
-revert-checked fix is *evidence*.
+**The revert-verified count is currently PENDING a clean sweep** — `revert_verified.json`
+(14:40) records `tree_restored_and_green: False` after two sweeps overlapped and restored
+each other's mutations. Read the count from that file *only* when it also reports a green
+tree. Whatever it says, that is the number to read rather than the test total: a passing
+suite is a *reading*, a revert-checked fix is *evidence*.
 
 Read it out of `reports/revert_verified.json`, not from here. Four of those 25 were added
 to the script after the previous sweep, and for a while this README said `23 of 23` — a
