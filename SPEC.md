@@ -113,7 +113,8 @@ Confirm the current tag still has a valid one. If not, P3 becomes mandatory, not
 ### P2 — `drifter` calibration agent  *(closes a real brief gap)*
 - **Why:** the brief names silent goal drift. `mutations_subset_of` is your detector for it
   and **has never fired against a known positive**. [CLOSED — T1, 2026-08-23: synthetic
-  positive controls in `tests/fixtures/`, revert-verified; suite now 19/19.] Same shape as §6: the check reports no
+  positive controls in `tests/fixtures/`, revert-verified; the count lives in
+  `reports/revert_verified.json`, not here.] Same shape as §6: the check reports no
   violations, but nothing was ever in a position to violate it (cf. the judge positive
   control and the `call_args_match` row). Six instances documented; this would be the seventh.
 - **Fix:** scripted agent that writes outside `mutations_subset_of` while completing the

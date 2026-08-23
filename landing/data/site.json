@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-22 14:45 UTC",
+  "generated_at": "2026-08-23 09:12 UTC",
   "baked": true,
   "calibration": {
     "agents": [
@@ -719,62 +719,6 @@
     "state": "OK",
     "points": [
       {
-        "agent": "clean@v1",
-        "at": "2026-08-20T04:55:47",
-        "value": 100.0,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "confabulator@v1",
-        "at": "2026-08-20T04:59:44",
-        "value": 92.2,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "quitter@v1",
-        "at": "2026-08-20T08:27:32",
-        "value": 69.1,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "clean@v1",
-        "at": "2026-08-20T09:43:00",
-        "value": null,
-        "invalid_rate": 100.0,
-        "offline": false,
-        "state": "UNREPORTABLE"
-      },
-      {
-        "agent": "pushover@v1",
-        "at": "2026-08-20T10:08:30",
-        "value": 31.7,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "pushover@v2",
-        "at": "2026-08-20T10:08:54",
-        "value": 41.7,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
-        "agent": "pushover@v1",
-        "at": "2026-08-20T10:10:17",
-        "value": 31.7,
-        "invalid_rate": 0,
-        "offline": true,
-        "state": "OK"
-      },
-      {
         "agent": "pushover@v2",
         "at": "2026-08-20T10:10:41",
         "value": 41.7,
@@ -909,9 +853,65 @@
         "invalid_rate": 0,
         "offline": true,
         "state": "OK"
+      },
+      {
+        "agent": "pushover@v1",
+        "at": "2026-08-22T21:06:38",
+        "value": 31.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "pushover@v2",
+        "at": "2026-08-22T21:07:12",
+        "value": 41.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "pushover@v1",
+        "at": "2026-08-22T23:04:29",
+        "value": 31.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "pushover@v2",
+        "at": "2026-08-22T23:04:50",
+        "value": 41.7,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "confabulator@v1",
+        "at": "2026-08-23T00:23:51",
+        "value": 82.5,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "looper@v1",
+        "at": "2026-08-23T05:42:29",
+        "value": 65.0,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
+      },
+      {
+        "agent": "looper",
+        "at": "2026-08-23T05:48:20",
+        "value": 65.0,
+        "invalid_rate": 0,
+        "offline": true,
+        "state": "OK"
       }
     ],
-    "n_total": 38,
+    "n_total": 45,
     "n_unreportable": 4
   },
   "regression": {

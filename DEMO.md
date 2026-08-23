@@ -39,7 +39,7 @@ this order:
 
 | # | number | what it settles |
 |---|---|---|
-| 1 | **14 of 20** instances of our worst bug were inside the guard against it, not the harness — so all **23 of 23** fixes are revert-verified | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
+| 1 | **14 of 20** instances of our worst bug were inside the guard against it, not the harness — so every shipped fix is revert-checked: **25 of 25** verified, 0 stayed green | the bug class is self-camouflaging; vigilance is not a strategy, so we mechanised the only rule that survives |
 | 2 | **zero** false positives on `clean` — at most **6.0%** on `DESTRUCTIVE_ACTION` (0/60), but at most **56%** on `ARG_CONSTRAINT_VIOLATED` (0/3) | the suite does not flag a good agent — *and* we report how little that proves per detector, because the denominator is applicability, not 60 |
 | 3 | **P=0.29** on our own refusal heuristic, with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -51,7 +51,7 @@ have made it look twenty times safer. That single row is the whole method in min
 Number 1 is what buys the credibility for 2 and 3.
 
 ---|---|
-| **14 of 20** instances of our worst bug were inside the guard against it — and all **23 of 23** fixes revert-verified | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
+| **14 of 20** instances of our worst bug were inside the guard against it — and every fix is revert-checked: **25 of 25**, 0 stayed green | the bug class is self-camouflaging, so we mechanised the only rule that survives it |
 | **−29.8, p<0.0001, exit 1** on a real regression — and **zero flips** on the A/A null | the tracker fires on a real change *and* stays silent on no change |
 | **P=0.29** on our own refusal heuristic — with **0 of 120** verdicts depending on it | we measured our weakest component, published the bad number, and bounded its blast radius |
 
@@ -96,11 +96,12 @@ Right after the fingerprint table. This is the strongest material in the deck, a
 **ratio is the finding** — the count is supporting detail. Lead with this sentence:
 
 > **Fourteen of the twenty times this harness measured the wrong thing, the defect was
-> not in the harness — it was in a check written to prevent exactly that.**
+> not in the harness — it was in a check, a guard, or a rehearsal written to prevent
+> exactly that.**
 
-That is 72%. Seven were found by *running* something, never by re-reading.
+That is 70%. Nine were found by *running* something, never by re-reading.
 
-Because that says something a list of thirteen anecdotes does not: **the bug class is
+Because that says something a list of twenty anecdotes does not: **the bug class is
 self-camouflaging.** A guard against *measuring the wrong thing* fails by measuring the
 wrong thing —
 
@@ -117,9 +118,13 @@ and "we were careful" is not evidence. The only rule that survives is **revert-c
 revert the fix, confirm the suite goes red, restore.
 
 **And that is now an empirical result, not a preference.** `scripts/revert_check.py` does
-it mechanically. It found **seven of the twenty** — one inside a fix it had itself just prompted, one in a
-rehearsal checklist that had never been run, and one in the analysis of the judge result
-that proves the tool works. The mechanism caught instances that re-reading the code never did.
+it mechanically, and it found **three of the twenty** — rows 12, 13 and 14 — including one
+inside a fix it had itself just prompted. Widen it from that mechanism to *running
+something at all* and the count is **nine of the twenty**: add a rehearsal checklist that
+had never been executed, the analysis of the judge result that proves the tool works, and a
+rehearsal that recorded a crash as a pass. Running things caught instances that re-reading
+the code never did. Keep the two numbers apart on stage — three is what the revert-check
+itself found; nine is what execution found.
 
 **The strongest version, and the one to actually say:** this is not a story about one
 codebase being sloppy. The same mechanism shows up at **four layers** — in the harness's own logic
@@ -129,10 +134,15 @@ asking *"is it really done?"* found a real gap three times. Every occurrence has
 shape: **verification drifts toward the implementation and away from the requirement.**
 Cross-layer evidence is much harder to wave away than a within-harness count.
 
-> **The number to say out loud: 23 of 23 revert-verified.** Not "288 tests pass". 288
-> passing tests is a *reading*; a revert-checked subset is *evidence*. If someone asks why
-> you are quoting the smaller number, that is the answer, and it is the best thing in the
-> deck.
+> **The number to say out loud: 25 of 25 revert-verified, 0 stayed green.** Not "290 tests
+> pass". A passing suite is a *reading*; a revert-checked fix is *evidence*. If someone asks
+> why you are quoting the smaller number, that is the answer, and it is the best thing in
+> the deck.
+>
+> Re-derive it from `reports/revert_verified.json` on the morning of the demo. It was `23 of
+> 23` here while the script held 25 mutations and the report recorded 21 — a completeness
+> claim no run supported, in the deck whose whole point is that a count must come from a
+> run.
 
 If asked what the gaps in the old numbering were: the table is now sequential 1–14, and
 ids 1–4 predate the build log kept in this repo. They are marked **not recoverable** rather
@@ -150,7 +160,7 @@ than back-filled, because inventing them would be its own instance.
 | 3 | One failure, end to end | `are report runs/calib-pushover` then open its `report.html` | Framing → `issue_refund` → the assertion that caught it, payload by id only. **Generate it first** — `calibrate` writes verdicts, `report` renders them |
 | 4 | Regression **and** null | **first** `bash scripts/demo_runs.sh` (builds the three runs), then `are compare runs/p3-v2 runs/p3-v1 --ci` and `are compare runs/p3-v1 runs/p3-v1b --ci` | −29.8 exit 1, then zero flips exit 0. **Run both** — the null is what makes the first credible. `runs/` is gitignored, so a fresh clone has nothing to compare until you build it |
 | 5 | What the suite says about *itself* | `are analyse` | 60/60 discriminate; zero FPs on the control; **two detectors that never fire on the frozen set — a gap in the SUITE, not the detectors; both have revert-verified positive controls outside it**; top-3 templates are 50% of the suite |
-| 6 | **Fourteen of twenty were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 23 of 23 revert-verified — quote that, not the test total |
+| 6 | **Fourteen of twenty were in the guard itself** | `CLAUDE.md` §7.10 + `reports/revert_verified.json` | The ratio, then the rule it forces: 25 of 25 revert-verified, 0 stayed green — quote that, not the test total |
 | 7 | Limitations | `README.md` | 1a/1b split: the online *path* works; model-attributed *results* do not exist. Judge uncalibrated. Refusal lexicon P=0.29, and 0 of 120 verdicts rest on it |
 
 Steps 6 and 7 are the ones people remember. Step 0 decides whether they believe 2–5 at all.
@@ -289,8 +299,9 @@ it is almost entirely narration, which is where the attention should go.
 git clone --branch v1.6-demo <repo> /tmp/rehearse && cd /tmp/rehearse
 pip install -r requirements.txt
 
-python -m pytest -q            # -> 256 passed, 3 SKIPPED   <-- see note
-python scripts/revert_check.py # -> 23/23 revert-verified, tree GREEN
+python -m pytest -q            # -> RE-MEASURE, see note (was 282 passed + 3 skipped
+                               #    when the suite held 285; it now holds 290)
+python scripts/revert_check.py # -> 25/25 revert-verified, tree GREEN
 python -m are.cli selftest              # -> exit 0 (3 judge probes SKIPPED)
 python -m are.cli selftest --strict     # -> exit 1, BY DESIGN
 python -m are.cli calibrate --scenarios frozen/frozen_scenarios.json --offline --no-sandbox
@@ -310,9 +321,17 @@ bash demo.sh                            # -> exit 0 in 50s
 > `gen-targeted` it is **285 passed, 0 skipped**. All three counts were measured on
 > 2026-08-23 in a fresh clone of `main`.
 >
+> **These three counts are STALE and must be re-measured before the demo.** They were
+> executed on 2026-08-23 against a suite of 285 tests; `reports/revert_verified.json` now
+> records **290 passed** after its restore, so five tests have landed since. The numbers
+> are left visible with their date rather than quietly updated to an inferred 287/3,
+> because inferring them is the error this note exists to record.
+>
 > An earlier version of this checklist said "expect 253 passed". That was written from
 > memory and was wrong on a clean machine — which is the `report.html` bug one level up,
-> and is exactly why this block now records executed output instead of expectations.
+> and is exactly why this block records executed output instead of expectations. The fix
+> for that bug then left `256 passed` in the command line above it, three lines from a
+> note saying 282 — the same error surviving inside its own correction.
 >
 > **Re-running this is not ceremony.** The 2026-08-23 pass of exactly this sequence is
 > what surfaced §7.10 row 19: `calibrate` on its *default* path returned

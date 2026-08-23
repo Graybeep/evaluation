@@ -192,8 +192,14 @@ five scorecards are reportable. (Online is a different story: see Limitations 1.
 
 ### How the tests here are validated
 
-**23 of 23 shipped fixes are revert-verified.** That is the number to read, not the test
-total: a passing suite is a *reading*, a revert-checked fix is *evidence*.
+**25 of 25 shipped fixes are revert-verified** (sweep of 2026-08-23 14:24; `n_stayed_green:
+0`). That is the number to read, not the test total: a passing suite is a *reading*, a
+revert-checked fix is *evidence*.
+
+Read it out of `reports/revert_verified.json`, not from here. Four of those 25 were added
+to the script after the previous sweep, and for a while this README said `23 of 23` — a
+completeness claim no run supported. They were closed by re-running the sweep, not by
+editing the number.
 
 ```bash
 python scripts/revert_check.py   # reverts each fix, confirms the suite goes red, restores
@@ -206,8 +212,9 @@ tests *that run had just produced* found a third: a tautology test written to re
 tautology.
 
 That is why the rule is mechanised rather than recommended. Fourteen of the twenty instances
-in CLAUDE.md §7.10 did not live in the harness at all — they lived in a check written to
-prevent that exact bug. Seven were found by *running* something rather than re-reading it,
+in CLAUDE.md §7.10 did not live in the harness at all — they lived in a check, a guard, or
+the rehearsal written to prevent that exact bug. Nine were found by *running* something
+rather than re-reading it,
 including one in a rehearsal checklist that had never been executed, one in the analysis of
 the judge run itself, and one in a rehearsal that recorded a crash as a pass because the
 crash's exit code matched the expected one.

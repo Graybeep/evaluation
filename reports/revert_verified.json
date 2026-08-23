@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-23T06:30:57",
+  "generated_at": "2026-08-23T14:40:26",
   "method": "Each shipped fix was reverted, the full suite was run, and the result recorded. A test that stays green with its subject reverted is not evidence.",
-  "n_mutations": 21,
-  "n_revert_verified": 21,
+  "n_mutations": 25,
+  "n_revert_verified": 25,
   "n_stayed_green": 0,
   "n_pattern_not_found": 0,
-  "tree_restored_and_green": true,
-  "suite_after_restore": "285 passed in 23.82s",
+  "tree_restored_and_green": false,
+  "suite_after_restore": "7 failed, 283 passed in 36.10s",
   "results": [
     {
       "id": "G3-null-cell",
@@ -15,7 +15,7 @@
       "why_red": "a null cell must not read as 'uncorrelated'",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 23.56s",
+      "suite": "1 failed, 289 passed in 34.54s",
       "restored": true
     },
     {
@@ -25,7 +25,7 @@
       "why_red": "a partition that leaves a residue must raise, not report a flag",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 23.54s",
+      "suite": "1 failed, 289 passed in 33.93s",
       "restored": true
     },
     {
@@ -35,7 +35,7 @@
       "why_red": "denominator 60-by-default must fail",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 283 passed in 23.98s",
+      "suite": "2 failed, 288 passed in 32.89s",
       "restored": true
     },
     {
@@ -45,7 +45,7 @@
       "why_red": "absence of the field must fail; composites must stay byte-identical",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 23.58s",
+      "suite": "1 failed, 289 passed in 34.35s",
       "restored": true
     },
     {
@@ -55,7 +55,7 @@
       "why_red": "a regression alone must fail the build",
       "reverted": true,
       "went_red": true,
-      "suite": "3 failed, 282 passed in 23.80s",
+      "suite": "4 failed, 286 passed in 37.51s",
       "restored": true
     },
     {
@@ -65,7 +65,7 @@
       "why_red": "reportable=False must fail the build on its own",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 283 passed in 23.81s",
+      "suite": "3 failed, 287 passed in 44.59s",
       "restored": true
     },
     {
@@ -75,7 +75,7 @@
       "why_red": "mutations_subset_of must fire, and fire FOR the drift",
       "reverted": true,
       "went_red": true,
-      "suite": "3 failed, 282 passed in 23.39s",
+      "suite": "5 failed, 285 passed in 46.11s",
       "restored": true
     },
     {
@@ -85,7 +85,7 @@
       "why_red": "A/A must produce zero flagged regressions",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 283 passed in 24.11s",
+      "suite": "2 failed, 288 passed in 48.36s",
       "restored": true
     },
     {
@@ -95,7 +95,7 @@
       "why_red": "any scenario accepted without an explicit evaluation record must fail",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 275 passed, 9 errors in 23.46s",
+      "suite": "2 failed, 279 passed, 9 errors in 45.51s",
       "restored": true
     },
     {
@@ -105,7 +105,7 @@
       "why_red": "discrimination() must call the enforcement point, not hardcode the flag",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 23.28s",
+      "suite": "6 failed, 284 passed in 44.01s",
       "restored": true
     },
     {
@@ -115,7 +115,7 @@
       "why_red": "the co-fire matrix must cover the agents the C1/P2 cross-check needs",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 24.06s",
+      "suite": "1 failed, 289 passed in 41.88s",
       "restored": true
     },
     {
@@ -125,7 +125,7 @@
       "why_red": "a status string must not say 'unavailable' while a judge is configured",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 23.41s",
+      "suite": "1 failed, 289 passed in 41.20s",
       "restored": true
     },
     {
@@ -135,7 +135,7 @@
       "why_red": "the fallback must redact the key formats this repo actually uses",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 283 passed in 24.13s",
+      "suite": "2 failed, 288 passed in 41.82s",
       "restored": true
     },
     {
@@ -145,7 +145,7 @@
       "why_red": "an unreadable run must exit 2 (harness), never 1 (agent regressed)",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 23.23s",
+      "suite": "1 failed, 289 passed in 40.85s",
       "restored": true
     },
     {
@@ -155,7 +155,7 @@
       "why_red": "with no patterns, a clean repo scan is indistinguishable from a repo full of keys",
       "reverted": true,
       "went_red": true,
-      "suite": "3 failed, 282 passed in 23.37s",
+      "suite": "2 failed, 288 passed in 39.68s",
       "restored": true
     },
     {
@@ -165,7 +165,7 @@
       "why_red": "conflating the wall-clock kill switch with the budget one must fail; they are separate modes precisely because they catch different loop shapes (\u00a74.4)",
       "reverted": true,
       "went_red": true,
-      "suite": "4 failed, 281 passed in 24.06s",
+      "suite": "4 failed, 286 passed in 37.92s",
       "restored": true
     },
     {
@@ -175,7 +175,7 @@
       "why_red": "a silenced argument check must fail; with no positive control it previously rendered identically to 'never violated'",
       "reverted": true,
       "went_red": true,
-      "suite": "3 failed, 282 passed in 23.57s",
+      "suite": "3 failed, 287 passed in 39.88s",
       "restored": true
     },
     {
@@ -185,7 +185,7 @@
       "why_red": "an ungated kappa returns judge-vs-judge self-consistency, which reads as calibration and is not",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 24.15s",
+      "suite": "1 failed, 289 passed in 41.64s",
       "restored": true
     },
     {
@@ -195,7 +195,7 @@
       "why_red": "joining before draining deadlocks the child past the pipe buffer, so a 25-call run reports as a 120s agent timeout with zero tool calls",
       "reverted": true,
       "went_red": true,
-      "suite": "2 failed, 283 passed in 264.25s (0:04:24)",
+      "suite": "9 failed, 281 passed in 368.96s (0:06:08)",
       "restored": true
     },
     {
@@ -205,7 +205,47 @@
       "why_red": "a run that observed nothing about the agent must not score as its behaviour",
       "reverted": true,
       "went_red": true,
-      "suite": "1 failed, 284 passed in 24.01s",
+      "suite": "8 failed, 282 passed in 40.99s",
+      "restored": true
+    },
+    {
+      "id": "T5-scan-allowlist",
+      "spec_item": "row 20: test files are not exempt from the secret scan",
+      "file": "tests/test_no_secrets_in_repo.py",
+      "why_red": "an exempt test file is how a real credential hid from its own scanner",
+      "reverted": true,
+      "went_red": true,
+      "suite": "8 failed, 282 passed in 40.73s",
+      "restored": true
+    },
+    {
+      "id": "T5-overlap-teeth",
+      "spec_item": "row 20: overlap_run can detect a lightly-edited key",
+      "file": "tests/synthetic_keys.py",
+      "why_red": "a detector that cannot fire makes the no-derivation invariant vacuous",
+      "reverted": true,
+      "went_red": true,
+      "suite": "8 failed, 282 passed in 38.92s",
+      "restored": true
+    },
+    {
+      "id": "T6-rate-limit-429",
+      "spec_item": "429 rate_limited is retryable; credit exhaustion is not",
+      "file": "are/runner/llm.py",
+      "why_red": "treating every 429 as fatal is what discarded 359 of 360 online runs",
+      "reverted": true,
+      "went_red": true,
+      "suite": "8 failed, 282 passed in 36.55s",
+      "restored": true
+    },
+    {
+      "id": "T6-calibrate-judge-flag",
+      "spec_item": "calibrate exposes --judge",
+      "file": "are/cli.py",
+      "why_red": "a judge reachable only from `run` cannot be exercised across the suite",
+      "reverted": true,
+      "went_red": true,
+      "suite": "8 failed, 282 passed in 37.25s",
       "restored": true
     },
     {
@@ -215,7 +255,7 @@
       "why_red": "a zero-applicability category must not render PASS",
       "reverted": true,
       "went_red": true,
-      "suite": "5 failed, 280 passed in 23.61s",
+      "suite": "12 failed, 278 passed in 36.95s",
       "restored": true
     }
   ],

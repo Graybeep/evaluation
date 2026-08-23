@@ -563,9 +563,15 @@ infer success from the absence of a failure signal.**
 
 ### The finding is the ratio, not the count
 
-**Fourteen of the twenty instances below did not live in the harness — they lived in a
-check written to prevent exactly this bug.** That is 70%, and it is the result worth
-stating; "twenty instances" is only the supporting detail.
+**Fourteen of the twenty instances below did not live in the harness — they lived in
+something written to verify it: a check, a guard, or the rehearsal meant to catch the
+rest.** That is 70%, and it is the result worth stating; "twenty instances" is only the
+supporting detail.
+
+Read that ratio off the partition below, never from memory: it is the *checks* row (12)
+plus the *process* row (2). Twelve is the count for checks-and-guards alone; fifteen is
+the count for everything outside the harness. Three different true numbers — which is
+exactly how this paragraph twice came to disagree with its own table.
 
 **Where the defect lived** — disjoint, and it sums, because a partition that does not is
 this table's own subject matter:
@@ -702,7 +708,7 @@ It is here because excluding it would have been an artifact of ordering — the 
 declared closed one step before this was found, which is not the same as deciding it does
 not belong. Cost: one more reconciliation pass. Worth it: it is the closing argument.
 
-**Rows 12–15 exist because of the mechanism, not despite it.** All three were found by
+**Rows 12–14 exist because of the mechanism, not despite it.** All three were found by
 `scripts/revert_check.py` and the coverage sweep that followed it — none by re-reading the
 code. That is the argument for mechanising the rule rather than recommending it: *the
 revert-check found instances of the bug inside the fixes for the bug.*
@@ -716,15 +722,38 @@ means. It is recorded instead as what it is — the same reasoning error in the 
 and it is why every command in the running order is now dry-run before shipping. If asked,
 the answer is: same error, different artefact, kept out of the count on purpose.
 
-**Fourteen of the twenty are in a check written to catch exactly this** — instances 3, 4,
-5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 18 and 20. That is the most useful thing in the table: the reflex to check a
+**Fourteen of the twenty are in something written to catch exactly this** — instances 3,
+4, 5, 6, 7, 8, 10, 11, 12, 13, 14 and 20 in a check or a guard, plus 15 and 18 in the
+rehearsal process. That is the most useful thing in the table: the reflex to check a
 negative survives even while writing the guard against it.
 
-Every one of the seven was caught by **mutation**, never by re-reading: revert the fix,
-confirm the suite goes red, restore. `scripts/revert_check.py` runs it over **19** shipped
-fixes and writes `reports/revert_verified.json`.
+Rows 12, 13 and 14 were caught by **mutation**, never by re-reading: revert the fix,
+confirm the suite goes red, restore. `scripts/revert_check.py` mechanises that over the
+shipped fixes and writes `reports/revert_verified.json`.
 
-**Two numbers live next to each other here and they are not the same number.** **18** is the count of *instances of the bug class* in the table below. **19** is the count of *revert-verified fixes* in `scripts/revert_check.py`. They differ because not every mutation maps to a numbered row — T1 added controls for two detectors that were never a §7.10 instance at all, and T2 gated a function that was merely unused. Quoting either as the other is the reconciliation error §0.5 warns about. **A test that passes with its subject
+**Two numbers live next to each other here and they are not the same number.** **20** is
+the count of *instances of the bug class* in the table above. **25** is the count of
+*mutations* in `scripts/revert_check.py`, all 25 revert-verified by the sweep of
+2026-08-23 14:24 (`reports/revert_verified.json`: `n_revert_verified: 25`,
+`n_stayed_green: 0`).
+
+Read both off the artifacts, never from memory. On 2026-08-23 this file said **19**, the
+README said **23 of 23**, SPEC said **19/19** and the report recorded **21** — four values
+for one quantity, in the section whose subject is quoting a number without re-deriving it.
+The four that were genuinely unverified at that moment (`T5-scan-allowlist`,
+`T5-overlap-teeth`, `T6-rate-limit-429`, `T6-calibrate-judge-flag`) had been added to the
+script after the last sweep, and were closed by *running the sweep* rather than by editing
+the number — which is the only move this section endorses. **"Present in the script" and
+"driven red by a recorded run" are different states**, and a count that adds them together
+is the §7.10 bug wearing the §7.10 fix's clothes.
+
+The instance count and the mutation count are not derivable from one another in either
+direction: T1 added controls for two detectors that were never a §7.10 instance at all and
+T2 gated a function that was merely unused, while rows 1–4 predate the log entirely and
+rows 15 and 16 are a checklist and an analysis script — neither is a shipped fix a suite
+can be driven red against. Quoting any of the three as another is the reconciliation error
+§0.5 warns about, and this paragraph itself carried two wrong values until 2026-08-23.
+**A test that passes with its subject
 reverted is not evidence** — and rows 12–14 are what that rule bought, since all three were
 found inside fixes for earlier rows.
 
@@ -749,12 +778,12 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** Lead with the ratio: **fourteen of twenty instances lived in a check
-written to prevent this bug, and nine were found by running something rather than by
-re-reading it.** The recurring defect was never any one subsystem — it was
+**Say this in the demo.** Lead with the ratio: **fourteen of twenty instances lived in
+something written to catch this bug — a check, a guard, or a rehearsal — and nine were
+found by running something rather than by re-reading it.** The recurring defect was never any one subsystem — it was
 one reasoning error about what a passing check proves, and it is self-camouflaging enough
 to survive inside its own guard. That is why the rule is revert-checking rather than
-vigilance. That is a more useful finding than nine anecdotes, and it is the reason the
+vigilance. That is a more useful finding than twenty anecdotes, and it is the reason the
 scorecard prints "not measured" where a less careful tool prints a zero.
 
 ## 8. Component 5 — Scorecard & Regression

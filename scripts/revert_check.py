@@ -244,6 +244,43 @@ for _sig in (signal.SIGINT, signal.SIGTERM):
 #   * `--restore` recovers explicitly, without guessing.
 
 
+LOCK = Path(__file__).resolve().parent / ".revert_check.lock"
+
+
+def acquire_lock():
+    """Refuse to run while another sweep is in flight.
+
+    assert_tree_clean() stops a sweep starting on a DIRTY tree; it does nothing about a
+    second sweep starting while a first is mid-run. Two overlapping sweeps share
+    `.revert_backup/` and both write `revert_verified.json`, so on 2026-08-23 one
+    reported 25/25 GREEN at 14:24 and the other overwrote it with 7 failures at 14:40.
+    The count was quoted from the first before the second landed.
+
+    Worse than a wrong number: they restore each other's mutations, so a mutation can be
+    undone by the OTHER sweep and register as "stayed GREEN" -- a fix wrongly recorded as
+    unverified, which is this script's exact failure mode.
+
+    O_EXCL so the check and the claim are one atomic step; a stale lock from a killed run
+    is reported with its pid rather than silently removed, because "stale" and "another
+    sweep is running" are different states and only a human can tell them apart here."""
+    import errno
+    import os as _os
+    try:
+        fd = _os.open(str(LOCK), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY)
+        _os.write(fd, f"{_os.getpid()} {time.strftime('%Y-%m-%dT%H:%M:%S')}".encode())
+        _os.close(fd)
+    except OSError as exc:
+        if exc.errno != errno.EEXIST:
+            raise
+        held = LOCK.read_text(encoding="utf-8", errors="replace").strip()
+        print(f"REFUSING: another sweep holds the lock ({held}).")
+        print("Two concurrent sweeps corrupt each other's backups and both write")
+        print("reports/revert_verified.json, so neither result can be trusted.")
+        print(f"If that run is dead, delete {LOCK} and re-run.")
+        raise SystemExit(2)
+    atexit.register(lambda: LOCK.unlink(missing_ok=True))
+
+
 def assert_tree_clean() -> None:
     """Refuse to start on a dirty tree.
 
@@ -312,6 +349,7 @@ def restore_from_crash() -> int:
 def main() -> int:
     if "--restore" in sys.argv:
         return restore_from_crash()
+    acquire_lock()
     assert_tree_clean()
     BAK.mkdir(parents=True, exist_ok=True)
     files = sorted({m[2] for m in MUTATIONS})
