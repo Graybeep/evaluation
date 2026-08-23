@@ -563,20 +563,20 @@ infer success from the absence of a failure signal.**
 
 ### The finding is the ratio, not the count
 
-**Thirteen of the eighteen instances below did not live in the harness — they lived in a
-check written to prevent exactly this bug.** That is 72%, and it is the result worth
-stating; "eighteen instances" is only the supporting detail.
+**Thirteen of the nineteen instances below did not live in the harness — they lived in a
+check written to prevent exactly this bug.** That is 68%, and it is the result worth
+stating; "nineteen instances" is only the supporting detail.
 
 **Where the defect lived** — disjoint, and it sums, because a partition that does not is
 this table's own subject matter:
 
 | layer | n | rows |
 |---|---|---|
-| the harness's own logic | 4 | 1, 2, 9, 17 |
+| the harness's own logic | 5 | 1, 2, 9, 17, 19 |
 | **checks and guards written against that logic** | **11** | 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14 |
 | process — the demo script, the rehearsal checklist, and the rehearsal itself | 2 | 15, 18 |
 | analysis of the results | 1 | 16 |
-| **total** | **18** | |
+| **total** | **19** | |
 
 So the bug class is **self-camouflaging**: a guard against *measuring the wrong thing*
 fails by measuring the wrong thing. Two re-implemented their subject, one regenerated the
@@ -584,8 +584,10 @@ files it was checking and compared them to themselves, one counted receipts with
 checking any said anything, one asserted a tautology, one was *a tautology written to
 replace a tautology*.
 
-**Seven were found by running something, never by re-reading it** — rows 12, 13, 14, 15,
-16, 17 and 18. That is the argument for mechanising the rule rather than recommending vigilance.
+**Eight were found by running something, never by re-reading it** — rows 12, 13, 14, 15,
+16, 17, 18 and 19. That is the argument for mechanising the rule rather than recommending
+vigilance. Row 19 is the strongest case: it had survived every prior audit, every test run
+and every rehearsal, because **nothing had ever executed the default code path**.
 
 ### Two distinct lessons, and they are not the same lesson
 
@@ -645,6 +647,28 @@ mistake.
 
 | 18 | — | the **first timed rehearsal** | `exit=1` on the regression beat, which is the expected code | `compare` had **crashed** on a missing run directory. FileNotFoundError also exits 1, so the crash was indistinguishable from the real result. Recorded as a pass and nearly moved past |
 
+| 19 | — | `calibrate` on its **default** (sandboxed) path | `composite 65.0`, `invalid 0.0%`, `reportable True` — every surface said healthy | `looper` recorded **zero tool calls** and none of its declared modes. The child put a ~20KB trace on an `mp.Queue` while the parent sat in `proc.join()` not draining it, so the feeder blocked past the pipe buffer and the child never exited; the outer 120s cap then fired and `_killed()` synthesised a skeleton with `harness_error=None`. A harness deadlock wearing an agent's failure mode. `clean` (~2KB) fit in the buffer and passed, which is why it survived. Caught by running `calibrate` in a fresh clone during T4 |
+
+**Row 19 displaces row 18 as the most severe, and it is the only one that was live on the
+default path.** Three things make it worse than anything above it:
+
+1. **Every reported number said the run was healthy.** Not a skipped check, not a missing
+   artifact — `invalid_rate 0.0%` and `reportable: True`, the two fields §6.1 exists to
+   make trustworthy, both affirmatively wrong. And `composite 65.0` was *identical* whether
+   the agent ran or deadlocked, so the headline metric could not distinguish them either.
+2. **It was in the documented command.** `demo.sh` passes `--no-sandbox`, so the demo was
+   fine and every local check passed; anyone following the README got `ACCEPTANCE: FAIL`
+   with `looper`'s defect invisible. The rehearsal could not have found this, because the
+   rehearsal runs `demo.sh`.
+3. **`TIMEOUT` fired at 100%** — the detector that T1 had, hours earlier, built a positive
+   control for *because it never fires*. It fires constantly, as an artifact of a broken
+   sandbox. T1's finding ("the frozen set never exercises it") was true; the reason it read
+   as never-firing everywhere else is that the only path that triggers it was itself broken.
+
+The defect **scaled with trace size**, so it was invisible to every agent except the
+loudest one. That is the sharpest version of a lesson already in this table: a check that
+passes on small inputs is not a check that passes.
+
 **Row 18 is the worst one here, and it was nearly excluded.** Every other instance was
 caught *by* checking; this one was almost missed *while* checking, on the discipline this
 whole project rests on. It is the sharpest form of lesson (b) below: **the expected value
@@ -670,7 +694,7 @@ means. It is recorded instead as what it is — the same reasoning error in the 
 and it is why every command in the running order is now dry-run before shipping. If asked,
 the answer is: same error, different artefact, kept out of the count on purpose.
 
-**Thirteen of the eighteen are in a check written to catch exactly this** — instances 3, 4,
+**Thirteen of the nineteen are in a check written to catch exactly this** — instances 3, 4,
 5, 6, 7, 8, 10, 11, 12, 13, 14, 15 and 18. That is the most useful thing in the table: the reflex to check a
 negative survives even while writing the guard against it.
 
@@ -703,8 +727,8 @@ a `call_args_match` with no `must_call`/`no_call` anchoring the same tool. The s
 were deliberately not changed; changing them would alter frozen verdicts. The authoring
 defect is caught at the gate instead.
 
-**Say this in the demo.** Lead with the ratio: **thirteen of eighteen instances lived in a check
-written to prevent this bug, and seven were found by running something rather than by
+**Say this in the demo.** Lead with the ratio: **thirteen of nineteen instances lived in a check
+written to prevent this bug, and eight were found by running something rather than by
 re-reading it.** The recurring defect was never any one subsystem — it was
 one reasoning error about what a passing check proves, and it is self-camouflaging enough
 to survive inside its own guard. That is why the rule is revert-checking rather than

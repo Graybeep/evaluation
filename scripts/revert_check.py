@@ -139,6 +139,29 @@ MUTATIONS = [
      "an ungated kappa returns judge-vs-judge self-consistency, which reads as "
      "calibration and is not"),
 
+    # Row 19. The sandbox deadlock. The first mutation restores join-before-drain and
+    # is SLOW on purpose -- it reproduces the 120s hang, which is the bug.
+    ("T4-sandbox-drain", "row 19: drain the child queue before joining",
+     "are/runner/sandbox.py",
+     '        status = payload = None' + LF + '        deadline = time.monotonic() + timeout' + LF +
+     '        while True:' + LF + '            try:' + LF +
+     '                status, payload = queue.get(timeout=0.2)' + LF + '                break',
+     '        status = payload = None' + LF + '        proc.join(timeout)' + LF +
+     '        if proc.is_alive():' + LF + '            proc.terminate()' + LF +
+     '            proc.join(5)' + LF +
+     '            return _killed(scenario, agent, repeat_idx, timeout)' + LF +
+     '        deadline = time.monotonic()' + LF +
+     '        while True:' + LF + '            try:' + LF +
+     '                status, payload = queue.get_nowait()' + LF + '                break',
+     "joining before draining deadlocks the child past the pipe buffer, so a 25-call "
+     "run reports as a 120s agent timeout with zero tool calls"),
+
+    ("T4-outer-kill-invalid", "row 19: an outer-cap kill is a harness finding",
+     "are/runner/sandbox.py",
+     '                  harness_error=(f"outer sandbox cap',
+     '                  harness_error=("" and f"outer sandbox cap',
+     "a run that observed nothing about the agent must not score as its behaviour"),
+
     ("G5-three-state", "G5 not-applicable render", "are/score/suite.py",
      '''        if source == "judge" and not judge_used:
             per_mode[mode] = {

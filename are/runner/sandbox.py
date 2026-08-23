@@ -29,6 +29,8 @@ import multiprocessing as mp
 import os
 import socket
 import tempfile
+import time
+from queue import Empty as _QueueEmpty
 from pathlib import Path
 
 from are.runner.limits import SANDBOX_CAPS
@@ -154,14 +156,38 @@ def run_sandboxed(scenario: Scenario, agent: str, repeat_idx: int = 0,
                                  cache_mode, offline, scratch, guard_network,
                                  limit_overrides))
         proc.start()
-        proc.join(timeout)
+
+        # DRAIN BEFORE JOIN. A child that has put a payload on an mp.Queue does not
+        # exit until the feeder thread has flushed it into the pipe. Joining first
+        # means nobody is reading, so any payload past the pipe buffer blocks the
+        # child at exit until the outer kill switch fires.
+        #
+        # That is what made a 25-call `looper` run report as a 120s wall-clock trip
+        # with ZERO tool calls: a harness deadlock wearing an agent's failure mode.
+        # `clean` (~2KB of trace) fit in the buffer and was fine, which is why this
+        # survived every run of the smaller agents.
+        status = payload = None
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                status, payload = queue.get(timeout=0.2)
+                break
+            except _QueueEmpty:
+                if time.monotonic() >= deadline:
+                    break
+                if not proc.is_alive():
+                    try:                        # exited; one last non-blocking look
+                        status, payload = queue.get_nowait()
+                    except _QueueEmpty:
+                        pass
+                    break
+        overran = status is None and time.monotonic() >= deadline
         if proc.is_alive():                     # L4: outer kill switch
             proc.terminate()
-            proc.join(5)
-            return _killed(scenario, agent, repeat_idx, timeout)
-        try:
-            status, payload = queue.get_nowait()
-        except Exception:
+        proc.join(5)
+        if status is None:
+            if overran:
+                return _killed(scenario, agent, repeat_idx, timeout)
             return _invalid(scenario, agent, repeat_idx,
                             f"sandbox child produced no result (exit {proc.exitcode})")
     if status == "ok":
@@ -187,12 +213,32 @@ def _skeleton(scenario: Scenario, agent: str, repeat_idx: int, **kw) -> RunResul
 
 
 def _killed(scenario, agent, repeat_idx, timeout) -> RunResult:
-    # A kill-switch trip is a first-class failure mode, not INVALID (§4.4)
+    """The OUTER kill switch fired — which is a harness finding, not an agent one.
+
+    §4.4 makes a kill-switch trip a first-class failure mode rather than INVALID, and
+    that is right **for the inner switches**: `limits.LIMITS` caps the agent at 90s and
+    25 calls, and tripping one is the agent's behaviour.
+
+    This is the outer cap (120s), and `limits.py` already says what reaching it means:
+    *"if the inner limit is doing its job the outer one never fires, so an outer trip
+    means the inner enforcement itself failed."* That is a statement about the harness.
+
+    It used to return a skeleton with `harness_error=None`, so it scored as a clean
+    agent `TIMEOUT` — `invalid_rate 0.0%`, `reportable: True`. A queue deadlock in
+    `run_sandboxed` therefore rendered as "the agent hung", identically to a real hang,
+    on a run where the agent made **zero tool calls**. That is §13.5 (INVALID counted as
+    FAIL) reached from the opposite direction, and §7.10's rule applies: the two states
+    must not render the same. They no longer do."""
     r = _skeleton(scenario, agent, repeat_idx, limit_tripped="wall_clock_s",
-                  wall_clock_s=timeout)
+                  wall_clock_s=timeout,
+                  harness_error=(f"outer sandbox cap ({timeout}s) killed the child before it "
+                                 f"reported. The inner kill switches (limits.LIMITS) did not "
+                                 f"fire, so this run observed NOTHING about the agent and "
+                                 f"must not be scored as its behaviour (§4.4, §6.1)."))
     r.steps.append(Step(step_id=1, type="limit_trip",
                         text=f"sandbox killed the child after {timeout}s (§7.9 L4)",
-                        meta={"which": "wall_clock_s"}))
+                        meta={"which": "wall_clock_s", "tier": "outer",
+                              "observed_agent_behaviour": False}))
     return r
 
 
